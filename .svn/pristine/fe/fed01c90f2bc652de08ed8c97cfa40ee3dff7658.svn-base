@@ -1,0 +1,496 @@
+package com.vrv.cems.service.block.business;
+
+import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.log4j.Logger;
+import org.apache.thrift.TException;
+import org.junit.Test;
+
+import com.sys.common.util.UUIDUtils;
+import com.sys.common.util.security.CRCUtils;
+import com.vrv.cems.service.base.interfaces.IBlockService;
+import com.vrv.cems.service.base.interfaces.IDataprocessService;
+import com.vrv.cems.service.block.ServiceMain;
+import com.vrv.cems.service.block.bean.BlockBean;
+import com.vrv.cems.service.block.bean.BlockFailBean;
+import com.vrv.cems.service.block.bean.BlockTaskBean;
+import com.vrv.cems.service.block.bean.DeviceBean;
+import com.vrv.cems.service.block.bean.InputBean;
+import com.vrv.cems.service.block.bean.OutBean;
+import com.vrv.cems.service.block.bean.SendBlockBean;
+import com.vrv.cems.service.block.bean.ServiceParamBean;
+import com.vrv.cems.service.block.bean.UDPHead;
+import com.vrv.cems.service.block.bean.ServiceParamBean.ParamBean;
+import com.vrv.cems.service.block.cache.BlockBeanCache;
+import com.vrv.cems.service.block.cache.SendedBlockTaskCache;
+import com.vrv.cems.service.block.client.UDPClientCall;
+import com.vrv.cems.service.block.task.TaskQueue;
+import com.vrv.cems.service.block.utils.DBUtil;
+import com.vrv.cems.service.block.utils.JsonUtils;
+import com.vrv.cems.service.block.utils.SerializableUtil;
+import com.vrv.cems.service.block.utils.SystemConstants;
+import com.vrv.voa.client.ServiceFactory;
+
+/** 
+ *   <B>说       明</B>:
+ *
+ * @author  作  者  名：dongyifei<br/>
+ *		    E-mail ：dongyifei@vrvmail.com.cn
+ 
+ * @version 版   本  号：V1.0.<br/>
+ *          创建时间：2014年8月15日 下午7:28:51 
+ */
+public class SendUDPBlock {
+	private static Logger log = Logger.getLogger(SendUDPBlock.class);
+	
+	public static synchronized void send(String maxCode,String minCode){
+		String blockRuleType="";
+		String blockNumber="";
+		String blockIntervalTime="";
+		if(ServiceParamBean.StaticParams==null){
+			ServiceParamBean.StaticParams=ServiceMain.serviceParamBean.getParams();
+		}
+		List<ParamBean> params=ServiceParamBean.StaticParams;
+		for(ParamBean param:params)
+		{
+			if("blockRuleType".equalsIgnoreCase(param.getKey()))
+			{
+				blockRuleType=param.getValue();
+			}
+			if("blockNumber".equalsIgnoreCase(param.getKey()))
+			{
+				blockNumber=param.getValue();
+			}
+			if("blockIntervalTime".equalsIgnoreCase(param.getKey()))
+			{
+				blockIntervalTime=param.getValue();
+			}
+		}
+		
+		List<BlockFailBean> bfbs = new ArrayList<BlockFailBean>();
+		while(!TaskQueue.isEmpty()){
+			BlockTaskBean blockTaskBean = TaskQueue.poll();
+			DeviceBean targetBlockDevice = blockTaskBean.getBlockTargetDevice();
+			final List<DeviceBean> deviceBeans = blockTaskBean.getBlockSrcDevices();
+			targetBlockDevice.setBeginDate(new Date());
+			BlockBean blockBean = new BlockBean();
+			blockBean.setTaskId( UUIDUtils.get32UUID() );
+			targetBlockDevice.setTaskId(blockBean.getTaskId());
+			blockBean.setBlockIp(targetBlockDevice.getIp()+":"+targetBlockDevice.getMac()+";");
+			blockBean.setBlockState(targetBlockDevice.getBlockState());
+			blockBean.setBlockRuleType(blockRuleType);
+			blockBean.setBlockNumber(blockNumber );
+			blockBean.setBlockIntervalTime(blockIntervalTime );
+		
+			//设置  data 参数
+			InputBean inputBean = new InputBean();
+			inputBean.setMaxCode(IBlockService.SERVICE_CODE);
+			inputBean.setMinCode(minCode);
+			List<BlockBean> blockBeans = new ArrayList<BlockBean>();
+			blockBeans.add(blockBean); 
+			inputBean.setJdata(blockBeans);
+			byte[] blockData = null;
+			try {
+				blockData = JsonUtils.getJsonStr(inputBean).getBytes("UTF-8");
+			} catch (UnsupportedEncodingException e1) {
+				log.error("Exception",e1);
+				throw new RuntimeException( e1 ) ;
+			}
+			
+			
+			/*//设置 头信息
+			UDPHead head = new UDPHead();
+			head.setDwVersion(1);
+			head.setDwIndex(1);
+			head.setDwMaxCode(00010400);
+			head.setDwMinCode(1); 
+			head.setDwCount(1);
+			head.setDwMsgCode(msgCode);
+			head.setDwSize(blockData.length); 
+			head.setSzMark("test");
+			head.setData("test".getBytes()); 
+			 
+			byte[] headByte = head.convertByte();
+			byte[] sendData = new byte[blockData.length+headByte.length];
+			System.arraycopy(headByte,0, sendData , 0, headByte.length);
+			System.arraycopy(blockData,0, sendData , headByte.length, blockData.length);*/
+			
+			/*this.dwVersion = 1;
+			this.dwMaxCode = Integer.parseInt(maxCode, 16);
+			this.dwMinCode = Integer.parseInt(minCode, 16);
+			this.dwMsgCode = 1;
+			this.szMark = mark;
+			this.dwSize = 0;
+			this.dwCount = 1;
+			this.dwIndex = 1;*/
+			
+			/*	DWORD dwFlag;			/e_			
+			DWORD dwVersion;		//0x01010101
+			DWORD dwSize;			//数据包大小
+			DWORD dwCrc;			//数据包的crc，数据包中包含自增msgcode，防止篡改发包
+
+			BYTE szSessionId[16];	//GUID
+			DWORD dwMsgCode;		//0x00000001自增，防止伪造发包
+
+			DWORD dwMaxCode;		//数据包业务maxCode，0x00010100 0x00010400 0x00011200
+			DWORD dwMinCode;		//数据包业务minCode，0x00000004 0x00000001
+
+			WORD wHeadSize;			//包头大小
+			WORD wType;				//数据包是zip格式的
+			WORD wCount;			//3
+			WORD wIndex;			//1,2,3
+		*/	
+			
+			UDPHead head = new UDPHead();
+			head.setDwFlag("pde_");
+			head.setDwVersion(0x01010101);
+			head.setDwSize( blockData.length);
+			String crc=CRCUtils.getCRC32StringValue(blockData);
+			head.setDwCrc(crc);
+			String session=UUIDUtils.get32UUID();
+			head.setSzSessionId(session);
+			head.setDwMsgCode( 1 );
+			head.setDwMaxCode("0x"+IBlockService.SERVICE_CODE);
+			head.setDwMinCode(Integer.parseInt(minCode));
+			head.setwHeadSize((short)UDPHead.HEAD_SIZE);
+			head.setwType((short)1);		 
+			head.setwCount((short)3);
+			head.setwIndex((short)1);
+		
+			
+			 
+			final ByteBuffer message = ByteBuffer.allocate(UDPHead.HEAD_SIZE + blockData.length);
+			message.put(head.getCBuffer());
+			message.put( blockData ); 
+			
+			
+			//存入缓存
+			//SendedBlockTaskCache.put(targetBlockDevice, deviceBeans);
+			
+			boolean blockflag = false;
+			boolean noblockflag = false;
+			int msgCode=0;
+			for(DeviceBean deviceBean : deviceBeans){
+				if(StringUtils.isNotBlank(deviceBean.getIp())&StringUtils.isNotBlank(deviceBean.getUdpPort())){
+				try {
+					System.out.println("deviceBean.getUdpPort()"+Integer.valueOf(deviceBean.getUdpPort()));
+					//阻断服务与客户端UDP通讯 ，调用 客户端UDP服务
+					byte[] udpRs = UDPClientCall.sendUDPData( message.array() , deviceBean.getIp(), Integer.valueOf(deviceBean.getUdpPort()));
+					/*OutBean rsBean = JsonUtils.jsonToBean(new String(udpRs), OutBean.class, null);*/
+					if(new String(udpRs).trim()!=null){
+						msgCode+=1;
+						blockflag = true;
+					}
+				} catch (Exception e) {
+					log.error("Exception",e);
+					e.printStackTrace();
+				}
+				}
+			}
+			if(msgCode==deviceBeans.size())
+			{
+				noblockflag=true;
+			}
+			
+			
+			if(!blockflag||!noblockflag)
+			{	
+				final Timer timer = new Timer();
+				timer.schedule(new TimerTask() {
+					int count=3;
+					@Override
+					public void run() {
+						count--;
+						boolean blockflag = false;
+						boolean noblockflag = false;
+						int msgCode=0;
+						for(DeviceBean deviceBean : deviceBeans){
+							try {
+								//阻断服务与客户端UDP通讯 ，调用 客户端UDP服务
+								byte[] udpRs = UDPClientCall.sendUDPData( message.array() , deviceBean.getIp(), Integer.valueOf(deviceBean.getUdpPort()));
+								OutBean rsBean = JsonUtils.jsonToBean(new String(udpRs), OutBean.class, null);
+								if(rsBean.getResult().equals(SystemConstants.REQUEST_SUCCESS)){
+									msgCode+=1;
+									blockflag = true;
+								}
+							} catch (Exception e) {
+								log.error("Exception",e);
+								e.printStackTrace();
+							}
+						}
+						if(msgCode==deviceBeans.size())
+						{
+							noblockflag=true;
+						}
+						if (count<=0||blockflag||noblockflag) {
+							  timer.cancel();
+					}
+					}
+				}, 0, 60*1000);
+			}
+			if(blockflag)
+			{
+				//阻断成功,则存入队列
+				SendedBlockTaskCache.put(targetBlockDevice, deviceBeans);
+			}
+			if(noblockflag)
+			{
+				//取消阻断成功,则从队列里删除
+				SendedBlockTaskCache.remove(targetBlockDevice);
+			}
+			
+			/*if(!flag){//4个都失败记入审计
+				BlockFailBean blockFailBean = new BlockFailBean();
+				blockFailBean.setDeviceIp(targetBlockDevice.getIp());
+				blockFailBean.setDevOnlyId(targetBlockDevice.getDevOnlyId());
+				blockFailBean.setLogTime(System.currentTimeMillis());
+				blockFailBean.setMac(targetBlockDevice.getMac());
+				blockFailBean.setType("1");
+				blockFailBean.setRouteIp(targetBlockDevice.getRouteIp());
+				bfbs.add(blockFailBean);
+			} 
+		}
+		if(!bfbs.isEmpty()){//发送审计
+			InputBean inputBean = new InputBean();
+			inputBean.setMaxCode(SystemConstants.BLOCK_SERVICE_MAXCODE);
+			inputBean.setMinCode(SystemConstants.REPORT_NO_BLOCK_MINCODE);
+			inputBean.setJdata(bfbs);
+			String outStr = JsonUtils.getNoNullJsonStr(inputBean);
+			byte[] outData = outStr.getBytes();
+			//向配置服务要在线服务的ip和端口号
+			//配置服务接口暂未提供ip和端口号自己先定一个 
+			IDataprocessService client = ServiceFactory.getService(IDataprocessService.class);
+			try {
+				 client.getDataTS(SystemConstants.DATAPROCESS_SERVICE_MAXCODE,SystemConstants.DATAPROCESS_SERVICE_MYSQL_MINCODE,CRCUtils.getCRC32StringValue(outData),false,ByteBuffer.wrap(outData),false ,"",0);
+			} catch (TException e) {
+				e.printStackTrace();
+			}
+			*/
+		}
+		//序列化阻断任务缓存到文件
+		/*SerializableUtil.objectToFile(SendedBlockTaskCache.getMap(), SystemConstants.SENDED_BLOCK_TASK_CACHE_FILE);*/
+		DBUtil.saveDeviceBlock(SendedBlockTaskCache.getMap());
+		
+	}
+	
+	@Test
+	public  synchronized void sendTest(){
+		String blockRuleType="";
+		String blockNumber="";
+		String blockIntervalTime="";
+		if(ServiceParamBean.StaticParams!=null){
+			ServiceParamBean.StaticParams=ServiceMain.serviceParamBean.getParams();
+		}
+		List<ParamBean> params=ServiceParamBean.StaticParams;
+		for(ParamBean param:params)
+		{
+			if("blockRuleType".equalsIgnoreCase(param.getKey()))
+			{
+				blockRuleType=param.getValue();
+			}
+			if("blockNumber".equalsIgnoreCase(param.getKey()))
+			{
+				blockNumber=param.getValue();
+			}
+			if("blockIntervalTime".equalsIgnoreCase(param.getKey()))
+			{
+				blockIntervalTime=param.getValue();
+			}
+		}
+		List<BlockFailBean> bfbs = new ArrayList<BlockFailBean>();
+		System.out.println("TaskQueue is empty!");
+		while(!TaskQueue.isEmpty()){
+			System.out.println("TaskQueue.size"+TaskQueue.getAll().size());
+			BlockTaskBean blockTaskBean = TaskQueue.poll();
+			DeviceBean targetBlockDevice = blockTaskBean.getBlockTargetDevice();
+			final List<DeviceBean> deviceBeans = blockTaskBean.getBlockSrcDevices();
+			targetBlockDevice.setBeginDate(new Date());
+			BlockBean blockBean = new BlockBean();
+			blockBean.setTaskId( UUIDUtils.get32UUID() );
+			targetBlockDevice.setTaskId(blockBean.getTaskId());
+			blockBean.setBlockIp(targetBlockDevice.getIp()+":"+targetBlockDevice.getMac()+";");
+			blockBean.setBlockState(targetBlockDevice.getBlockState());
+			blockBean.setBlockRuleType(blockRuleType);
+			blockBean.setBlockNumber(blockNumber );
+			blockBean.setBlockIntervalTime(blockIntervalTime );
+		
+			//设置  data 参数
+			InputBean inputBean = new InputBean();
+			inputBean.setMaxCode(IBlockService.SERVICE_CODE);
+			inputBean.setMinCode(SystemConstants.CLIENT_UDP_MINCODE);
+			List<BlockBean> blockBeans = new ArrayList<BlockBean>();
+			blockBeans.add(blockBean); 
+			inputBean.setJdata(blockBeans);
+			byte[] blockData = null;
+			try {
+				blockData = JsonUtils.getJsonStr(inputBean).getBytes("UTF-8");
+			} catch (UnsupportedEncodingException e1) {
+				log.error("Exception",e1);
+				throw new RuntimeException( e1 ) ;
+			}
+			
+			
+			/*//设置 头信息
+			UDPHead head = new UDPHead();
+			head.setDwVersion(1);
+			head.setDwIndex(1);
+			head.setDwMaxCode(00010400);
+			head.setDwMinCode(1); 
+			head.setDwCount(1);
+			head.setDwMsgCode(msgCode);
+			head.setDwSize(blockData.length); 
+			head.setSzMark("test");
+			head.setData("test".getBytes()); 
+			 
+			byte[] headByte = head.convertByte();
+			byte[] sendData = new byte[blockData.length+headByte.length];
+			System.arraycopy(headByte,0, sendData , 0, headByte.length);
+			System.arraycopy(blockData,0, sendData , headByte.length, blockData.length);*/
+			
+			/*this.dwVersion = 1;
+			this.dwMaxCode = Integer.parseInt(maxCode, 16);
+			this.dwMinCode = Integer.parseInt(minCode, 16);
+			this.dwMsgCode = 1;
+			this.szMark = mark;
+			this.dwSize = 0;
+			this.dwCount = 1;
+			this.dwIndex = 1;*/
+			
+			UDPHead head = new UDPHead();
+			head.setDwFlag("");
+			head.setDwVersion(1);
+			head.setDwSize( blockData.length);
+			String crc=CRCUtils.getCRC32StringValue(blockData);
+			head.setDwCrc(crc);
+			String session=UUIDUtils.get32UUID();
+			head.setSzSessionId(session);
+			head.setDwMsgCode( 1 );
+			head.setDwMaxCode(IBlockService.SERVICE_CODE);
+			head.setDwMinCode(Integer.parseInt("2"));
+			head.setwHeadSize((short)UDPHead.HEAD_SIZE);
+			head.setwType((short)1);
+		 
+			head.setwCount((short)1);
+			head.setwIndex((short)1);
+			
+			final ByteBuffer message = ByteBuffer.allocate(UDPHead.HEAD_SIZE + blockData.length);
+			message.put(head.getCBuffer());
+			message.put( blockData ); 
+			
+			//存入缓存
+			
+			//SendedBlockTaskCache.put(targetBlockDevice, deviceBeans);
+			
+			boolean blockflag = false;
+			boolean noblockflag = false;
+			int msgCode=0;
+			for(DeviceBean deviceBean : deviceBeans){
+				try {
+					
+					//阻断服务与客户端UDP通讯 ，调用 客户端UDP服务
+					byte[] udpRs = UDPClientCall.sendUDPData( message.array() , deviceBean.getIp(), Integer.valueOf(deviceBean.getUdpPort()));
+					OutBean rsBean = JsonUtils.jsonToBean(new String(udpRs), OutBean.class, null);
+					if(rsBean.getResult().equals(SystemConstants.REQUEST_SUCCESS)){
+						msgCode+=1;
+						blockflag = true;
+					}
+				} catch (Exception e) {
+					log.error("Exception",e);
+					e.printStackTrace();
+				}
+			}
+			if(msgCode==deviceBeans.size())
+			{
+				noblockflag=true;
+			}
+			
+			
+			if(!blockflag||!noblockflag)
+			{	
+				final Timer timer = new Timer();
+				timer.schedule(new TimerTask() {
+					int count=3;
+					@Override
+					public void run() {
+						count--;
+						boolean blockflag = false;
+						boolean noblockflag = false;
+						int msgCode=0;
+						for(DeviceBean deviceBean : deviceBeans){
+							try {
+								//阻断服务与客户端UDP通讯 ，调用 客户端UDP服务
+								byte[] udpRs = UDPClientCall.sendUDPData( message.array() , deviceBean.getIp(), Integer.valueOf(deviceBean.getUdpPort()));
+								OutBean rsBean = JsonUtils.jsonToBean(new String(udpRs), OutBean.class, null);
+								if(rsBean.getResult().equals(SystemConstants.REQUEST_SUCCESS)){
+									msgCode+=1;
+									blockflag = true;
+								}
+							} catch (Exception e) {
+								log.error("Exception",e);
+								e.printStackTrace();
+							}
+						}
+						if(msgCode==deviceBeans.size())
+						{
+							noblockflag=true;
+						}
+						if (count<=0||blockflag||noblockflag) {
+							  timer.cancel();
+					}
+					}
+				}, 0, 60*1000);
+			}
+			if(blockflag)
+			{
+				//阻断成功,则存入队列
+				SendedBlockTaskCache.put(targetBlockDevice, deviceBeans);
+			}
+			if(noblockflag)
+			{
+				//取消阻断成功,则从队列里删除
+				SendedBlockTaskCache.remove(targetBlockDevice);
+			}
+			
+			/*if(!flag){//4个都失败记入审计
+				BlockFailBean blockFailBean = new BlockFailBean();
+				blockFailBean.setDeviceIp(targetBlockDevice.getIp());
+				blockFailBean.setDevOnlyId(targetBlockDevice.getDevOnlyId());
+				blockFailBean.setLogTime(System.currentTimeMillis());
+				blockFailBean.setMac(targetBlockDevice.getMac());
+				blockFailBean.setType("1");
+				blockFailBean.setRouteIp(targetBlockDevice.getRouteIp());
+				bfbs.add(blockFailBean);
+			} 
+		}
+		if(!bfbs.isEmpty()){//发送审计
+			InputBean inputBean = new InputBean();
+			inputBean.setMaxCode(SystemConstants.BLOCK_SERVICE_MAXCODE);
+			inputBean.setMinCode(SystemConstants.REPORT_NO_BLOCK_MINCODE);
+			inputBean.setJdata(bfbs);
+			String outStr = JsonUtils.getNoNullJsonStr(inputBean);
+			byte[] outData = outStr.getBytes();
+			//向配置服务要在线服务的ip和端口号
+			//配置服务接口暂未提供ip和端口号自己先定一个 
+			IDataprocessService client = ServiceFactory.getService(IDataprocessService.class);
+			try {
+				 client.getDataTS(SystemConstants.DATAPROCESS_SERVICE_MAXCODE,SystemConstants.DATAPROCESS_SERVICE_MYSQL_MINCODE,CRCUtils.getCRC32StringValue(outData),false,ByteBuffer.wrap(outData),false ,"",0);
+			} catch (TException e) {
+				e.printStackTrace();
+			}
+			*/
+		}
+		//序列化阻断任务缓存到文件
+		/*SerializableUtil.objectToFile(SendedBlockTaskCache.getMap(), SystemConstants.SENDED_BLOCK_TASK_CACHE_FILE);*/
+		DBUtil.saveDeviceBlock(SendedBlockTaskCache.getMap());
+		
+	}
+
+	
+}

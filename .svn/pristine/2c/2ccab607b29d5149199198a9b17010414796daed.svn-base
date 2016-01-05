@@ -1,0 +1,15 @@
+#[main]
+path.config.properties=target/classes/config.properties
+path.log4j.properties=target/classes/log4j.properties
+path.jdbc.properties=target/classes/jdbc.properties
+path.config.xml=target/classes/config.xml
+path.ehcache.xml=target/classes/ehcache.xml
+path.policy.xml=target/classes/policy.xml
+path.timer.xml=target/classes/timer.xml
+path.redis.properties=target/classes/redis.properties
+path.fastdfs.properties=target/classes/fastdfs.properties
+path.ftp.properties=target/classes/ftp.properties
+
+#[test]
+path.userTarget=target/test-classes/userTarget.xml
+path.userTarget=target/test-classes/userTarget.xml

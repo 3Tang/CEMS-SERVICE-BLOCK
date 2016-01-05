@@ -1,0 +1,374 @@
+package com.vrv.cems.service.block.utils;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.sql.SQLException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import com.vrv.cems.service.block.utils.SystemConstants;
+
+import org.apache.commons.dbutils.DbUtils;
+import org.apache.commons.dbutils.QueryRunner;
+import org.apache.commons.dbutils.handlers.BeanHandler;
+import org.apache.commons.dbutils.handlers.MapHandler;
+import org.apache.log4j.Logger;
+
+import com.sys.common.util.Assert;
+import com.sys.common.util.StringUtils;
+import com.sys.common.util.UUIDUtils;
+import com.vrv.cems.service.base.interfaces.IBlockService;
+import com.vrv.cems.service.block.bean.BlockTaskBean;
+import com.vrv.cems.service.block.bean.DBServParamBean;
+import com.vrv.cems.service.block.bean.DeviceBean;
+import com.vrv.cems.service.block.bean.DeviceBlockBean;
+import com.vrv.cems.service.block.bean.InputBean;
+
+/**
+ * <B>说 明</B>:数据库连接工具类
+ * 
+ * @author 作 者 名：xuzhudong<br/>
+ *         E-mail ：zhuxudong@vrvmail.com.cn
+ * 
+ * @version 版 本 号：V1.0.<br/>
+ *          创建时间：2014年8月19日 上午11:50:52
+ */
+public class DBUtil {
+
+	private static Logger log = Logger.getLogger(DBUtil.class);
+	@SuppressWarnings("rawtypes")
+	private static BeanHandler beanHandler = null;
+	public static QueryRunner queryRunner = null;
+	private static ConnectionPool pool = null;
+	private static final String SERVICEPARAM_TABLE_NAME = "cems_serviceParam";
+	static {
+		initTheardPool();
+	}
+
+	
+	public static void initTheardPool() {
+		DbUtils.loadDriver("com.mysql.jdbc.Driver");
+		try {
+			pool = ConnectionPool.getInstance(SystemConstants.PATH_JDBC_PROPERTIES);
+		} catch (Exception e) {
+			log.error("建立数据库连接池失败", e);
+		}
+		queryRunner = new QueryRunner(pool.mDataSource);
+	}
+	public static Map<String, Object> getColById(String sql, Object... params) {
+		MapHandler mapHandler = new MapHandler();
+		try {
+			return queryRunner.query(sql, mapHandler, params);
+		} catch (SQLException e) {
+			log.error("查询报错", e);
+			return null;
+		}
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	public static Object SQLParser(Class<?> type, String sql, Object... params) {
+		BeanHandler beanHandler = new BeanHandler(type);
+		try {
+			return queryRunner.query(sql, beanHandler, params);
+		} catch (SQLException e) {
+			log.error("查询报错", e);
+			return null;
+		}
+	}
+
+	public static void deleteByDevice(String deviceOnlyId) {
+		// TODO 自动生成的方法存根
+		// 根据deviceOnlyId在数据库里查找设备信息是否存在,如存在才删除
+		// Map<String, Object> map =
+		// DBUtil.getColById("select id,ip,state,registerTime from cems_device where devOnlyId=?",
+		// deviceOnlyId);
+
+		String sql = "delete * from cems_device where devOnlyId=?";
+		Object[] params = { deviceOnlyId };
+		try {
+			queryRunner.update(sql, params);
+		} catch (SQLException e) {
+			// TODO 自动生成的 catch 块
+			e.printStackTrace();
+		}
+
+	}
+
+	/**
+	 * 根据服务ID查询服务参数信息。
+	 * 
+	 * @param serviceId
+	 *            服务ID。
+	 * @return 服务参数对象。
+	 */
+	public static DBServParamBean queryByServiceId(String serviceId) {
+		Assert.isNotBlank(serviceId, "服务ID不能为空！");
+		DBServParamBean serviceParam = null;
+		String sql = "select * from " + SERVICEPARAM_TABLE_NAME
+				+ " where serviceId = '" + serviceId + "'";
+		try {
+			serviceParam = queryRunner.query(sql,
+					new BeanHandler<DBServParamBean>(DBServParamBean.class));
+		} catch (SQLException e) {
+			log.error("根据服务ID查询服务默认配置参数时出错!", e);
+		}
+		return serviceParam;
+	}
+
+	/**
+	 * 根据服务号查询服务参数信息。
+	 * 
+	 * @param serviceCode
+	 *            服务号。
+	 * @return 服务参数对象。
+	 */
+	public static DBServParamBean queryByServiceCode(String serviceCode) {
+		Assert.isNotBlank(serviceCode, "服务号不能为空！");
+		DBServParamBean serviceParam = null;
+
+		String sql = "select * from " + SERVICEPARAM_TABLE_NAME
+				+ " where serviceCode = '" + serviceCode + "'";
+		try {
+			serviceParam = queryRunner.query(sql,
+					new BeanHandler<DBServParamBean>(DBServParamBean.class));
+		} catch (SQLException e) {
+			log.error("根据服务号查询服务默认配置参数时出错!", e);
+		}
+		return serviceParam;
+	}
+
+	public static String queryUserInfoById(String user) throws SQLException {
+		String account = "";
+		MapHandler mapHandler = new MapHandler();
+		String sql = "select * from  cems_user where userOnlyId = ?";
+		Object[] params = { user };
+		Map<String, Object> map = queryRunner.query(sql, mapHandler, params);
+
+		if (map != null) {
+			account = map.get("account").toString();
+		}
+		return account;
+	}
+
+	/*
+	 * public static String updateIsOpenedByDevOnlyId(String devOnlyId,boolean
+	 * flag) { String querysql =
+	 * "select isOpened from cems_device where devOnlyId=?"; Object[] params = {
+	 * devOnlyId }; String updatesql =
+	 * "update cems_device set isOpened='' where devOnlyId=? "; try { if (flag)
+	 * { queryRunner.query(updatesql, params); } else {
+	 * queryRunner.update(delsql, params[1]); } }
+	 */
+
+	public static void putTaskQueue2DB(LinkedList<BlockTaskBean> all) {
+		if (all.size() > 0 && all != null) {
+			for (BlockTaskBean taskBean : all) {
+
+				DeviceBean targetBean = taskBean.getBlockTargetDevice();
+				List<DeviceBean> blockSrcDevices = taskBean
+						.getBlockSrcDevices();
+
+				String taskId = targetBean.getTaskId();
+				String targetIP = targetBean.getIp();
+				String targetMac = targetBean.getMac();
+				String blockState = targetBean.getBlockState();
+
+				DeviceBlockBean deviceBlockBean = new DeviceBlockBean();
+				deviceBlockBean.setId(UUIDUtils.get32UUID());
+				deviceBlockBean.setServiceId("");
+				StringBuffer ipSub = new StringBuffer();
+				StringBuffer udpSub = new StringBuffer();
+				for (int i = 0; i < blockSrcDevices.size(); i++) {
+					String srcIP = null;
+					String srcUdpPort = null;
+					if (i < blockSrcDevices.size() - 1) {
+						srcIP = blockSrcDevices.get(i).getIp();
+						ipSub.append(srcIP).append(",");
+						srcUdpPort = blockSrcDevices.get(i).getUdpPort();
+						udpSub.append(srcUdpPort).append(",");
+					}
+					ipSub.append(srcIP);
+					udpSub.append(srcUdpPort);
+
+				}
+
+				// deviceBlockBean.setBlockSrc(ipSub.toString());
+				BeanHandler beanHandler = new BeanHandler(DeviceBlockBean.class);
+				DeviceBlockBean selectResult = new DeviceBlockBean();
+				String selectSql = "select * from cems_device_block where taskId=?";
+				Object[] selectParams = { taskId };
+
+				try {
+					queryRunner.query(selectSql, beanHandler, selectParams);
+				} catch (SQLException e) {
+					// TODO 自动生成的 catch 块
+					e.printStackTrace();
+				}
+
+				if (StringUtils.isNotBlank(selectResult.getId())) {
+					String updatesql = "update from cems_device_block set targetIP=?,targetMac=?,blockState=? where taskId=?";
+					Object[] updateParams = { targetIP, targetMac, blockState,
+							taskId };
+					try {
+						queryRunner.update(updatesql, updateParams);
+					} catch (SQLException e) {
+						// TODO 自动生成的 catch 块
+						e.printStackTrace();
+					}
+				}
+
+				String insertSql = "insert into cems_device_block(taskId,targetIP,targetMac,blockState,blockSrc) values(?,?,?,?)";
+				Object[] insertParams = { taskId, targetIP, targetMac,
+						blockState };
+				try {
+					queryRunner.update(insertSql, insertParams);
+				} catch (SQLException e) {
+					// TODO 自动生成的 catch 块
+					e.printStackTrace();
+				}
+			}
+
+		}
+	}
+
+	public static List<DeviceBean> getProtectState(InputBean onlineInputBean) {
+		List<DeviceBean> deviceIns = onlineInputBean.getJdata();
+		List<DeviceBean> deviceOuts = new ArrayList<DeviceBean>();
+		for (DeviceBean deviceIn : deviceIns) {
+			BeanHandler beanHandler = new BeanHandler(DeviceBean.class);
+			MapHandler mapHadler=new MapHandler();
+			String ip=deviceIn.getIp();
+			String mac=deviceIn.getMac();
+			String protectState="";
+			String querySql = "select * from cems_device_unreg where ip=? and mac=? ";
+			Object[] queryParams = {ip,mac};
+			Map<String,Object> map=new HashMap<String,Object>();
+			DeviceBean queryResult = new DeviceBean();
+			try {
+				if (StringUtils.isNotBlank(deviceIn.getIp())
+						/*&& StringUtils.isNotBlank(deviceIn.getMac())*/) {
+					map = queryRunner.query(querySql, mapHadler,
+							queryParams);
+				}
+			} catch (SQLException e) {
+				// TODO 自动生成的 catch 块
+				e.printStackTrace();
+			}
+			if(map!=null&map.size()>0)
+			{
+				try
+				{
+					protectState=map.get("protectState").toString();
+				}
+				catch(NullPointerException e)
+				{
+					protectState="0";
+				}
+				
+				
+				DeviceBean resultBean=new DeviceBean();
+				resultBean.setIp(ip);
+				resultBean.setMac(mac);
+				resultBean.setProtectState(protectState);
+				deviceOuts.add(resultBean);
+			}
+		}
+
+		return deviceOuts;
+	}
+
+	public static boolean deviceBlockContais(DeviceBean bean) {
+
+		String querySql = "select * from cems_device_block where ip=? and mac=?";
+		Object[] queryParams = { bean.getIp(), bean.getMac() };
+		DeviceBlockBean deviceBlockResult = new DeviceBlockBean();
+		BeanHandler beanHandler = new BeanHandler(DeviceBlockBean.class);
+		try {
+			if (StringUtils.isNotBlank(bean.getIp())
+					&& StringUtils.isNotBlank(bean.getMac())) {
+				deviceBlockResult = queryRunner.query(querySql, beanHandler,
+						queryParams);
+			}
+		} catch (SQLException e) {
+			// TODO 自动生成的 catch 块
+			e.printStackTrace();
+		}
+		if (deviceBlockResult!=null&&StringUtils.isNotBlank(deviceBlockResult.getIp())
+				&& StringUtils.isNotBlank(deviceBlockResult.getMac())) {
+			return true;
+		} else {
+			return false;
+		}
+
+	}
+
+	public static void saveDeviceBlock(Map<DeviceBean, List<DeviceBean>> map) {
+		
+	    for(Entry<DeviceBean, List<DeviceBean>> entry : map.entrySet()){
+	    	 
+	    	DeviceBean targetDevice=entry.getKey();
+	    	List<DeviceBean> srcDevices=entry.getValue();
+	    
+	    
+	    	 InetAddress addr = null;
+			try {
+				addr = InetAddress.getLocalHost();
+			} catch (UnknownHostException e) {
+				// TODO 自动生成的 catch 块
+				e.printStackTrace();
+			}
+	             
+			for(DeviceBean srcDevice:srcDevices){
+			String id=UUIDUtils.get32UUID();
+	    	String serverId=addr.getHostName()==null?"null":addr.getHostName();
+	    	String serviceId=IBlockService.SERVICE_CODE;
+	    	String ip=targetDevice.getIp()==null?"null":targetDevice.getIp();
+	    	String mac=targetDevice.getMac()==null?"null":targetDevice.getMac();
+	    	String blockHost=srcDevice.getDevOnlyId()==null?"null":srcDevice.getDevOnlyId();
+	    	int blockRuleType;
+			if(StringUtils.isNotBlank(SystemConstants.blockRuleType)){
+	    	 blockRuleType=Integer.parseInt(SystemConstants.blockRuleType);
+			}
+			else
+			{
+				blockRuleType=0;
+			}
+	    	
+	    	String blockParam="";
+	    		if(blockRuleType==1)
+	    		{
+	    			blockParam=SystemConstants.blockIntervalTime==null?"null":SystemConstants.blockIntervalTime;
+	    		}
+	    		if(blockRuleType==2)
+	    		{
+	    			blockParam=SystemConstants.blockNumber==null?"null":SystemConstants.blockNumber;
+	    		}
+	    		
+	    		SimpleDateFormat sdf=new SimpleDateFormat("yy-MM-dd HH:mm:ss");
+	    		String createTime=sdf.format(new Date());
+	    		
+	    		String insertSql="insert into cems_device_block(id,serverId,serviceId,ip,mac,blockHost,blockRuleType,blockParam,createTime) values(?,?,?,?,?,?,?,?,?)";
+	    		Object[] insertParams={id,serverId,serviceId,ip,mac,blockHost,blockRuleType,blockParam,createTime};
+	    		
+	    		try {
+					queryRunner.update(insertSql, insertParams);
+				} catch (SQLException e) {
+					// TODO 自动生成的 catch 块
+					e.printStackTrace();
+				}
+	    		
+			}
+	    	
+	    	
+	       }
+	 
+		 
+		 
+	}
+}

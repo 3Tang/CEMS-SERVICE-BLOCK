@@ -1,0 +1,44 @@
+package com.vrv.cems.service.block.server.test;
+
+import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.thrift.TException;
+import org.junit.Test;
+
+import com.sys.common.util.security.CRCUtils;
+import com.vrv.cems.service.base.interfaces.IBlockService;
+import com.vrv.cems.service.block.ServiceMain;
+import com.vrv.cems.service.block.impl.BlockServiceImpl;
+
+public class TestScanProcess {
+	 private static Log logger = LogFactory.getLog(TestScanProcess.class);
+	
+	@Test
+	public void test() throws UnsupportedEncodingException
+	{
+		String scanStr1="[{'areaId':'','devOnlyId':'','ip':'192.168.32.100','mac':'00-01-02-03-04-05','hostName':'majiandong-pc','groupName':'WORK','isOpened':'1','orgId':'2322','isFireWall':'1'}]";
+		
+		String scanStr2="[{'devOnlyId':'74bf0bc7199247a4b3dae1ed3529702b','regUserId':'31bf0bc7199247a4b3dae1ed3529efca','userId':'a4bf0bc7199247a4b3dae1ed3529d30f','jdata':[{'devOnlyId':'c4019b56795b49fe8ce1cd0d3477efe8','areaId':'','ip':'192.168.32.100','mac':'00-01-02-03-04-05','hostName':'majiandong-pc','groupName':'WORK','isOpened':'1','orgId':'2322','isFireWall':'1'}] }]";
+		
+        String scanStr3="[{'areaId':'','devOnlyId':'','groupName':'','hostName':'','ip':'192.168.88.1','isFireWall':'2','isOpened':'1','mac':'','orgId':'8729ddixusjwusjajsusjauq'},{'areaId':'','devOnlyId':'','groupName':'WORKGROUP      ','hostName':'XIUFENG        ','ip':'192.168.88.248','isFireWall':'2','isOpened':'1','mac':'90-2B-34-4D-DB-AD','orgId':'8729ddixusjwusjajsusjauq'}]";		
+		byte[] inData1=scanStr1.getBytes("UTF-8");
+		byte[] inData2=scanStr3.getBytes();
+		
+		BlockServiceImpl blockService=new BlockServiceImpl();
+		String checkCode=CRCUtils.getCRC32StringValue(inData1);
+		ByteBuffer data=ByteBuffer.wrap(inData2);
+		try {
+			//blockService.getDataTC(IBlockService.SERVICE_CODE, IBlockService.SCAN, checkCode, false, data, "", 0);
+			blockService.getDataTS(IBlockService.SERVICE_CODE, IBlockService.SCAN, checkCode, false, data,false, "", 0);
+		} catch (TException e) {
+			// TODO 自动生成的 catch 块
+			e.printStackTrace();
+		}
+		
+		
+		
+	}
+}

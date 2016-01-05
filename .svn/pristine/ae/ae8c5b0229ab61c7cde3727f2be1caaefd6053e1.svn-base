@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<timers>
+	<timerBean>
+		<name>HeartTaskJob</name><!--定时器名称-->
+		<group>Group1</group>
+		<trigger>HeartTaskTrigger</trigger>
+		<cycle>0/1 * * * * ?</cycle><!--定时器执行周期-->
+	</timerBean>
+	<timerBean>
+		<name>ScanBlockMemoryJob</name><!--定时器名称-->
+		<group>Group2</group>
+		<trigger>ScanBlockMemoryTrigger</trigger>
+		<cycle>15 0/1 * * * ?</cycle><!--定时器执行周期-->
+	</timerBean>
+</timers>

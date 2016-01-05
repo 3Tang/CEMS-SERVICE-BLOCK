@@ -1,0 +1,105 @@
+package com.vrv.cems.service.localtest;
+
+import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+
+import org.junit.Test;
+
+import com.sys.common.util.UUIDUtils;
+import com.sys.common.util.security.CRCUtils;
+import com.vrv.cems.service.base.interfaces.IBlockService;
+import com.vrv.cems.service.block.bean.BlockBean;
+import com.vrv.cems.service.block.bean.BlockTaskBean;
+import com.vrv.cems.service.block.bean.DeviceBean;
+import com.vrv.cems.service.block.bean.InputBean;
+import com.vrv.cems.service.block.bean.OutBean;
+import com.vrv.cems.service.block.bean.UDPHead;
+import com.vrv.cems.service.block.client.UDPClientCall;
+import com.vrv.cems.service.block.task.TaskQueue;
+import com.vrv.cems.service.block.utils.JsonUtils;
+import com.vrv.cems.service.block.utils.SystemConstants;
+
+public class TestSendUDP {
+
+	/*private final static int DEFAULT_PORT=18080;
+	private final static int MAX_PACKET_SIZE=65507;
+
+	@Test
+	public  void testSendUDP() {
+		
+		BlockTaskBean taskBean = new BlockTaskBean();
+		DeviceBean target=new DeviceBean();
+		target.setIp("192.168.131.81");
+		target.setMac("abcd0e123231");
+		taskBean.setBlockTargetDevice(target);
+		 List<DeviceBean> deviceBeanList=new ArrayList<DeviceBean>();
+		taskBean.setBlockSrcDevices(deviceBeanList);
+		//TaskQueue.addTask(taskBean);
+		
+		//BlockTaskBean blockTaskBean = TaskQueue.poll();
+		//DeviceBean targetBlockDevice = blockTaskBean.getBlockTargetDevice();
+		//final List<DeviceBean> deviceBeans = blockTaskBean.getBlockSrcDevices();
+		target.setBeginDate(new Date());
+		BlockBean blockBean = new BlockBean();
+		blockBean.setBlockIp(target.getIp()+":"+target.getMac()+";");
+		blockBean.setBlockState(target.getBlockState());
+
+	
+		//设置  data 参数
+		InputBean inputBean = new InputBean();
+		inputBean.setMaxCode(IBlockService.SERVICE_CODE);
+		inputBean.setMinCode(SystemConstants.CLIENT_UDP_MINCODE);
+		List<BlockBean> blockBeans = new ArrayList<BlockBean>();
+		blockBeans.add(blockBean); 
+		inputBean.setJdata(blockBeans);
+		byte[] blockData = null;
+		try {
+			blockData = JsonUtils.getJsonStr(inputBean).getBytes("UTF-8");
+			System.out.println("包体的内容为");
+		} catch (UnsupportedEncodingException e1) {
+			
+			throw new RuntimeException( e1 ) ;
+		}
+		
+	
+		UDPHead head = new UDPHead();
+		head.setDwFlag("pde_");
+		head.setDwVersion(0x01010101);
+		head.setDwSize( blockData.length);
+		String crc=CRCUtils.getCRC32StringValue(blockData);
+		head.setDwCrc(crc);
+		String session=UUIDUtils.get32UUID();
+		head.setSzSessionId(session);
+		head.setDwMsgCode( 1 );
+		head.setDwMaxCode("0x"+IBlockService.SERVICE_CODE);
+		head.setDwMinCode(2100);
+		head.setwHeadSize((short)UDPHead.HEAD_SIZE);
+		head.setwType((short)1);		 
+		head.setwCount((short)1);
+		head.setwIndex((short)1);
+	
+		 
+		final ByteBuffer message = ByteBuffer.allocate(UDPHead.HEAD_SIZE + blockData.length);
+		message.put(head.getCBuffer());
+		message.put( blockData ); 
+		
+		System.out.println("包头+包体的内容为"+new String(message.array()));
+		
+		
+		String ip="192.168.0.133";//"192.168.131.81";
+		int udp=8080;
+		
+		byte[] udpRs = null;
+		try {
+			udpRs = UDPClientCall.sendUDPData(message.array() , ip,udp);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		OutBean rsBean = JsonUtils.jsonToBean(new String(udpRs), OutBean.class, null);
+	}
+*/
+}

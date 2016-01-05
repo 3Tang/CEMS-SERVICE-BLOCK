@@ -1,0 +1,148 @@
+/**   
+* @Title: BlockResult.java 
+* @Package com.vrv.cems.service.block.bean 
+* @Description: TODO(用一句话描述该文件做什么) 
+* @author tangtieqiao
+		   tangtieqiao@vrvmail.com.cn
+* @date 2015年12月8日 下午3:09:35 
+* @version V1.0   
+*/
+package com.vrv.cems.service.block.bean;
+
+import java.io.Serializable;
+
+/** 
+ * @ClassName: BlockResult 
+ * @Description: TODO(这里用一句话描述这个类的作用) 
+ * @author tangtieqiao
+			tangtieqiao@vrvmail.com.cn
+ * @date 2015年12月8日 下午3:09:35 
+ *  
+ */
+public class BlockResult implements Serializable {
+
+	/** 
+	* @Fields serialVersionUID : TODO(用一句话描述这个变量表示什么) 
+	*/ 
+	private static final long serialVersionUID = -4839544714371397805L;
+	private String ip;
+	private String blockIp;
+	private String blockState;
+	private String blockRuleType;
+	private String blockTime;
+    private String blockResult;
+	/** 
+	* <p>Title: </p> 
+	* <p>Description: </p>  
+	*/
+	public BlockResult() {
+		super();
+	}
+	/** 
+	* <p>Title: </p> 
+	* <p>Description: </p> 
+	* @param ip
+	* @param blockIp
+	* @param blockState
+	* @param blockRuleType
+	* @param blockTime
+	* @param blockResult 
+	*/
+	public BlockResult(String ip, String blockIp, String blockState,
+			String blockRuleType, String blockTime, String blockResult) {
+		super();
+		this.ip = ip;
+		this.blockIp = blockIp;
+		this.blockState = blockState;
+		this.blockRuleType = blockRuleType;
+		this.blockTime = blockTime;
+		this.blockResult = blockResult;
+	}
+	/*
+	* Title: toString
+	*Description: 
+	* @return 
+	* @see java.lang.Object#toString() 
+	*/
+	@Override
+	public String toString() {
+		return "BlockResult [ip=" + ip + ", blockIp=" + blockIp
+				+ ", blockState=" + blockState + ", blockRuleType="
+				+ blockRuleType + ", blockTime=" + blockTime + ", blockResult="
+				+ blockResult + "]";
+	}
+	/** 
+	 * @return ip 
+	 */
+	public String getIp() {
+		return ip;
+	}
+	/** 
+	 * @param ip 要设置的 ip 
+	 */
+	public void setIp(String ip) {
+		this.ip = ip;
+	}
+	/** 
+	 * @return blockIp 
+	 */
+	public String getBlockIp() {
+		return blockIp;
+	}
+	/** 
+	 * @param blockIp 要设置的 blockIp 
+	 */
+	public void setBlockIp(String blockIp) {
+		this.blockIp = blockIp;
+	}
+	/** 
+	 * @return blockState 
+	 */
+	public String getBlockState() {
+		return blockState;
+	}
+	/** 
+	 * @param blockState 要设置的 blockState 
+	 */
+	public void setBlockState(String blockState) {
+		this.blockState = blockState;
+	}
+	/** 
+	 * @return blockRuleType 
+	 */
+	public String getBlockRuleType() {
+		return blockRuleType;
+	}
+	/** 
+	 * @param blockRuleType 要设置的 blockRuleType 
+	 */
+	public void setBlockRuleType(String blockRuleType) {
+		this.blockRuleType = blockRuleType;
+	}
+	/** 
+	 * @return blockTime 
+	 */
+	public String getBlockTime() {
+		return blockTime;
+	}
+	/** 
+	 * @param blockTime 要设置的 blockTime 
+	 */
+	public void setBlockTime(String blockTime) {
+		this.blockTime = blockTime;
+	}
+	/** 
+	 * @return blockResult 
+	 */
+	public String getBlockResult() {
+		return blockResult;
+	}
+	/** 
+	 * @param blockResult 要设置的 blockResult 
+	 */
+	public void setBlockResult(String blockResult) {
+		this.blockResult = blockResult;
+	}
+    
+    
+}

@@ -1,0 +1,176 @@
+package com.vrv.cems.service.block.bean;
+
+import java.io.Serializable;
+import java.util.Date;
+
+/** 
+ *   <B>说       明</B>:设备对象
+ *
+ * @author  作  者  名：dongyifei<br/>
+ *		    E-mail ：dongyifei@vrvmail.com.cn
+ 
+ * @version 版   本  号：V1.0.<br/>
+ *          创建时间：2014年8月15日 下午7:28:51 
+ */
+public class DeviceBean implements Serializable{
+	//设备唯一Id
+	private String devOnlyId;
+	private String ip;
+	private String mac;
+	private String hostName;
+	private String groupName;
+	private String blockState;
+	private String routeIp;
+	
+	private String protectState;
+	//阻断开始时间
+	private Date beginDate;
+	private String boot;
+	private String orgid;
+	//注册用户
+	private String RUser;
+	private String User;
+	private String isOpened;
+	private String state;
+	//UDP端口号
+	private String udpPort;
+
+
+	
+	public String getHostName() {
+		return hostName;
+	}
+	public void setHostName(String hostName) {
+		this.hostName = hostName;
+	}
+	public String getGroupName() {
+		return groupName;
+	}
+	public void setGroupName(String groupName) {
+		this.groupName = groupName;
+	}
+	public String getBoot() {
+		return boot;
+	}
+	public void setBoot(String boot) {
+		this.boot = boot;
+	}
+	public String getOrgid() {
+		return orgid;
+	}
+	public void setOrgid(String orgid) {
+		this.orgid = orgid;
+	}
+
+	public String getRUser() {
+		return RUser;
+	}
+	public void setRUser(String rUser) {
+		RUser = rUser;
+	}
+	public String getUser() {
+		return User;
+	}
+	public void setUser(String user) {
+		User = user;
+	}
+	public String getIsOpened() {
+		return isOpened;
+	}
+	public void setIsOpened(String isOpened) {
+		this.isOpened = isOpened;
+	}
+	
+	
+	
+	public String getIp() {
+		return ip;
+	}
+	public void setIp(String ip) {
+		this.ip = ip;
+	}
+	public String getMac() {
+		return mac;
+	}
+	public void setMac(String mac) {
+		this.mac = mac;
+	}
+	
+	public String getState() {
+		return state;
+	}
+	public void setState(String state) {
+		this.state = state;
+	}
+	public String getUdpPort() {
+		return udpPort;
+	}
+	public void setUdpPort(String udpPort) {
+		this.udpPort = udpPort;
+	}
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((ip == null) ? 0 : ip.hashCode());
+		result = prime * result + ((mac == null) ? 0 : mac.hashCode());
+		return result;
+	}
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		DeviceBean other = (DeviceBean) obj;
+		if (ip == null) {
+			if (other.ip != null)
+				return false;
+		} else if (!ip.equals(other.ip))
+			return false;
+		if (mac == null) {
+			if (other.mac != null)
+				return false;
+		} else if (!mac.equals(other.mac))
+			return false;
+		return true;
+	}
+
+	public Date getBeginDate() {
+		return beginDate;
+	}
+	public void setBeginDate(Date beginDate) {
+		this.beginDate = beginDate;
+	}
+	public String getBlockState() {
+		return blockState;
+	}
+	public void setBlockState(String blockState) {
+		this.blockState = blockState;
+	}
+	public String getRouteIp() {
+		return routeIp;
+	}
+	public void setRouteIp(String routeIp) {
+		this.routeIp = routeIp;
+	}
+
+	public String getDevOnlyId() {
+		return devOnlyId;
+	}
+	public void setDevOnlyId(String devOnlyId) {
+		this.devOnlyId = devOnlyId;
+	}
+
+	public String getProtectState() {
+		return protectState;
+	}
+
+	public void setProtectState(String protectState) {
+		this.protectState = protectState;
+	}
+	
+	
+}

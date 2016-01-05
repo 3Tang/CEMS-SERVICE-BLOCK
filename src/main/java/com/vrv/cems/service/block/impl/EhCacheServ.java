@@ -1,0 +1,182 @@
+
+package com.vrv.cems.service.block.impl;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import org.apache.log4j.Logger;
+
+import com.sys.common.util.StringUtils;
+import com.vrv.cems.service.block.bean.BlockDevice;
+import com.vrv.cems.service.block.bean.BlockResult;
+import com.vrv.cems.service.block.bean.ProtectedDevice;
+import com.vrv.cems.service.block.bean.ScanProcessBean;
+import com.vrv.cems.service.block.business.ScanProcess;
+import com.vrv.cems.service.block.utils.EhCacheUtil;
+import com.vrv.cems.service.block.utils.SystemConstants;
+
+/**
+ * @ClassName: EhCacheServ
+ * @Description: TODO(这里用一句话描述这个类的作用)
+ * @author tangtieqiao tangtieqiao@vrvmail.com.cn
+ * @date 2015年11月17日 下午7:30:48
+ * 
+ */
+public class EhCacheServ {
+
+	private static final Logger log = Logger.getLogger(EhCacheServ.class);
+
+	private EhCacheServ() {
+	}
+
+	private static final EhCacheServ instance = new EhCacheServ();
+
+	public static EhCacheServ getInstance() {
+		return instance;
+	}
+
+	/**
+	 * @Title: storeScanResult
+	 * @Description: TODO(这里用一句话描述这个方法的作用)
+	 * @param @param spbMap 参数说明
+	 * @return void 返回类型
+	 * @throws
+	 */
+	public void storeScanResult(Map<String, ScanProcessBean> spbMap) {
+		if (spbMap != null && spbMap.size() > 0) {
+			if (EhCacheUtil.isExist(SystemConstants.SCAN_RESULT_LIST)) {
+				Map<String, ScanProcessBean> storeMap = (Map<String, ScanProcessBean>) EhCacheUtil
+						.get(SystemConstants.SCAN_RESULT_LIST);
+				log.info("SCAN_RESULT_LIST缓存已经存储条数为:" + storeMap.size());
+				for (Entry<String, ScanProcessBean> entry : spbMap.entrySet()) {
+					if (!storeMap.containsKey(entry.getKey())) {
+						storeMap.put(entry.getKey(), entry.getValue());
+					}
+				}
+				EhCacheUtil.set(SystemConstants.SCAN_RESULT_LIST, storeMap);
+			} else {
+				EhCacheUtil.set(SystemConstants.SCAN_RESULT_LIST, spbMap);
+			}
+			// EhCacheUtil.flush();
+		}
+
+	}
+
+	/**
+	 * @Title: storeBlockTarget
+	 * @Description: TODO(这里用一句话描述这个方法的作用)
+	 * @param @param deviceBeans 参数说明
+	 * @return void 返回类型
+	 * @throws
+	 */
+	public void storeBlockTarget(Map<String, ProtectedDevice> blocktargetMap) {
+		if (blocktargetMap != null && blocktargetMap.size() > 0) {
+			if (EhCacheUtil.isExist(SystemConstants.BLOCK_TARGET_LIST)) {
+				Map<String, ProtectedDevice> storeMap = (Map<String, ProtectedDevice>) EhCacheUtil
+						.get(SystemConstants.BLOCK_TARGET_LIST);
+				log.info("BLOCK_TARGET_LIST缓存已经存储条数为:" + storeMap.size());
+				for (Map.Entry<String, ProtectedDevice> entry : blocktargetMap
+						.entrySet()) {
+					if (!storeMap.containsKey(entry.getKey())) {
+						if (StringUtils.isNotBlank(entry.getValue().toString())) {
+							storeMap.put(entry.getKey(), entry.getValue());
+						}
+					}
+				}
+				EhCacheUtil.set(SystemConstants.BLOCK_TARGET_LIST, storeMap);
+			} else {
+				EhCacheUtil.set(SystemConstants.BLOCK_TARGET_LIST,
+						blocktargetMap);
+			}
+		}
+
+	}
+
+	public List<ProtectedDevice> getBlockTargetList() {
+		List<ProtectedDevice> protecDevs = new ArrayList<ProtectedDevice>();
+		Map<String, ProtectedDevice> blocktargeMap = (Map<String, ProtectedDevice>) EhCacheUtil
+				.get(SystemConstants.BLOCK_TARGET_LIST);
+
+		for (Map.Entry<String, ProtectedDevice> entry : blocktargeMap
+				.entrySet()) {
+			ProtectedDevice protecDev = entry.getValue();
+			protecDevs.add(protecDev);
+		}
+
+		return protecDevs;
+	}
+
+	/**
+	 * @Title: storeBlockHost
+	 * @Description: TODO(这里用一句话描述这个方法的作用)
+	 * @param @param blockDevMap 参数说明
+	 * @return void 返回类型
+	 * @throws
+	 */
+	public void storeBlockHost(Map<String, BlockDevice> blockDevMap) {
+		if (blockDevMap != null && blockDevMap.size() > 0) {
+			if (EhCacheUtil.isExist(SystemConstants.BLOCK_HOST_LIST)) {
+				Map<String, BlockDevice> storeMap = (Map<String, BlockDevice>) EhCacheUtil
+						.get(SystemConstants.BLOCK_HOST_LIST);
+				log.info("BLOCK_HOST_LIST缓存已经存储条数为:" + storeMap.size());
+				for (Map.Entry<String, BlockDevice> entry : blockDevMap
+						.entrySet()) {
+					if (!storeMap.containsKey(entry.getKey())) {
+						if (StringUtils.isNotBlank(entry.getValue().toString())) {
+							storeMap.put(entry.getKey(), entry.getValue());
+						}
+					}
+				}
+				EhCacheUtil.set(SystemConstants.BLOCK_HOST_LIST, storeMap);
+			} else {
+				EhCacheUtil.set(SystemConstants.BLOCK_HOST_LIST, blockDevMap);
+			}
+		}
+
+	}
+
+	public List<BlockDevice> getBlockHostList() {
+		List<BlockDevice> blockDevs = new ArrayList<BlockDevice>();
+		Map<String, BlockDevice> blockHostMap = (Map<String, BlockDevice>) EhCacheUtil
+				.get(SystemConstants.BLOCK_HOST_LIST);
+		if (blockHostMap != null && blockHostMap.size() > 0) {
+			for (Map.Entry<String, BlockDevice> entry : blockHostMap.entrySet()) {
+				BlockDevice blockDev = entry.getValue();
+				blockDevs.add(blockDev);
+			}
+		}
+		return blockDevs;
+	}
+
+	/**
+	 * @Title: storeBlockResult
+	 * @Description: TODO(这里用一句话描述这个方法的作用)
+	 * @param @param blockResults 参数说明
+	 * @return void 返回类型
+	 * @throws
+	 */
+	public void storeBlockResult(Map<String, BlockResult> blockResults) {
+		if (blockResults != null && blockResults.size() > 0) {
+			if (EhCacheUtil.isExist(SystemConstants.BLOCK_FAIL_LIST)) {
+				Map<String, BlockResult> blockResMap = (Map<String, BlockResult>) EhCacheUtil
+						.get(SystemConstants.BLOCK_FAIL_LIST);
+				log.info("BLOCK_FAIL_LIST缓存已经存储条数为:" + blockResMap.size());
+				for (Map.Entry<String, BlockResult> entry : blockResults
+						.entrySet()) {
+					if (!blockResMap.containsKey(entry.getKey())) {
+						if (StringUtils.isNotBlank(entry.getValue().toString())) {
+							blockResMap.put(entry.getKey(), entry.getValue());
+						}
+					}
+				}
+				EhCacheUtil.set(SystemConstants.BLOCK_FAIL_LIST, blockResMap);
+			} else {
+				EhCacheUtil.set(SystemConstants.BLOCK_FAIL_LIST, blockResults);
+			}
+		}
+
+	}
+}

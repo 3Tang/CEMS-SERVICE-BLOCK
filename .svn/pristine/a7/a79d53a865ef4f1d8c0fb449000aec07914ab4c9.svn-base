@@ -1,0 +1,14 @@
+#configure server info
+server.ip=192.168.0.133
+server.port=8100
+#service self info
+service.id=9b39083b079b4523abfc3129febadf87
+service.name=CEMS-SERVICE-BLOCK
+service.description=service_block
+service.code=00010400
+service.version=1.0.20150423
+service.port=10400
+service.serverAreaId=serverAreaMain
+service.ip=192.168.0.133
+service.ssid=11d3e9eb7cd248d6a7b68bf0102eba15
+service.location=/usr/local/service/CEMS-SERVICE-BLOCK/bin

@@ -1,0 +1,221 @@
+package com.vrv.cems.service.block.business;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import net.sf.json.JSONObject;
+
+import org.apache.commons.dbutils.DbUtils;
+import org.apache.log4j.Logger;
+import org.apache.thrift.TException;
+import org.junit.Test;
+
+import com.sys.common.util.security.CRCUtils;
+import com.vrv.cems.service.base.interfaces.IOnlineService;
+import com.vrv.cems.service.block.bean.AttackDeviceInfoBean;
+import com.vrv.cems.service.block.bean.BlockTaskBean;
+import com.vrv.cems.service.block.bean.DeviceBean;
+import com.vrv.cems.service.block.bean.InputBean;
+import com.vrv.cems.service.block.bean.OnlineBlockInBean;
+import com.vrv.cems.service.block.bean.OutBean;
+import com.vrv.cems.service.block.cache.SendedBlockTaskCache;
+import com.vrv.cems.service.block.task.TaskQueue;
+import com.vrv.cems.service.block.utils.CommonUtil;
+import com.vrv.cems.service.block.utils.DBUtil;
+import com.vrv.cems.service.block.utils.JsonUtils;
+import com.vrv.cems.service.block.utils.SystemConstants;
+import com.vrv.voa.client.ServiceFactory;
+
+
+
+/** 
+ *   <B>说       明</B>:DeviceStateChangeProcess 处理 在线 传过来的 保护状态 来组包 去 查询 阻断主机 信息
+ *
+ * @author  作  者  名 ：tangtieqiao<br/>
+ *		    E-mail ：tangtieqiao@vrvmail.com.cn
+ 
+ * @version 版   本  号：V1.0.<br/>
+ *          创建时间：2015年6月8日上午11:27:37 
+ */
+public class DeviceStateChangeProcess {
+	private static Logger log = Logger
+			.getLogger(DeviceStateChangeProcess.class);
+
+	/** 
+	* @Title: changeProcess 
+	* @Description: TODO 组包发送在线查询阻断主机 主逻辑 
+	* @param @param beans    设定文件 
+	* @return void    返回类型 
+	* @throws 
+	*/ 
+	public static synchronized void changeProcess(List<DeviceBean> beans) {
+		
+		Set<DeviceBean> blockDeviceBeans = new HashSet<DeviceBean>();// 要进行查询阻断主机的设备
+		for (DeviceBean bean : beans) {
+		if (bean.getProtectState().equals("1")) {// 受保护状态:0不受保护,1受保护
+				// 判断 是否阻断 ， 受保护 和注册 的则不阻断
+				log.info(bean.getIp()+"受保护");
+				if (DBUtil.deviceBlockContais(bean)) {// 如果原先为阻断则取消阻断
+					bean.setBlockState("0");// 0取消阻断			
+					blockDeviceBeans.add(bean);
+				}
+			} else {// 阻断
+				if (!SystemConstants.isBlock.equals("0")) {
+					log.info(bean.getIp()+"不受保护");
+					bean.setBlockState("1");//1去阻断		
+					//添加阻断到任务队列
+					blockDeviceBeans.add(bean);
+				}
+			}
+		}
+
+		try {
+			// 获取 阻断源 并生成任务队列
+			InputBean inputBean = new InputBean();
+			inputBean.setBlockHostNum(SystemConstants.blockHostNum);
+			for (DeviceBean bean : blockDeviceBeans) {
+				List<DeviceBean> deviceBeans = new ArrayList<DeviceBean>();				
+				DeviceBean deviceBean = new DeviceBean();
+				deviceBean.setIp(bean.getIp());
+				deviceBean.setMac(bean.getMac());
+				deviceBeans.add(deviceBean);
+				inputBean.setJdata(deviceBeans);
+				String outStr = JsonUtils.getNoNullJsonStr(inputBean);
+				log.info("请求在线服务获取阻断主机所发数据：" + outStr);
+				byte[] outData = outStr.getBytes();
+				// 配置服务接口暂未提供ip和端口号自己先定一个
+				IOnlineService client = ServiceFactory
+						.getService(IOnlineService.class);
+				ByteBuffer onlineOutData = null;
+				try {
+					onlineOutData = client.getDataTS(
+							IOnlineService.SERVICE_CODE,
+							IOnlineService.REGISTERED_DEVICE,
+							CRCUtils.getCRC32StringValue(outData), false,
+							ByteBuffer.wrap(outData), false, "", 0);
+				} catch (TException e) {
+					e.printStackTrace();
+				}
+				if (onlineOutData != null) {
+					List<AttackDeviceInfoBean> attckDevList=new ArrayList<AttackDeviceInfoBean>();
+					String rStr = CommonUtil.byteBufferToString(onlineOutData);
+					log.info("在线返回阻断主机信息为" + rStr);
+					OutBean onlineOutBean = JsonUtils.jsonToBean(rStr,
+							OutBean.class, AttackDeviceInfoBean.class);
+					attckDevList=onlineOutBean.getJdata();
+					
+					for(AttackDeviceInfoBean attackBean:attckDevList)
+					{	
+						JSONObject jsonObject = JSONObject.fromObject(attackBean);			
+						AttackDeviceInfoBean desBean=JsonUtils.jsonToBlockBean(jsonObject.toString(),
+								AttackDeviceInfoBean.class, DeviceBean.class);
+						BlockTaskBean taskBean = new BlockTaskBean();	
+						DeviceBean target=new DeviceBean();
+						target.setIp(bean.getIp());
+						target.setMac(bean.getMac());
+						taskBean.setBlockTargetDevice(bean);
+						taskBean.setBlockSrcDevices(desBean.getBlockHost());
+						TaskQueue.addTask(taskBean);
+					}
+
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		
+	}
+	
+	@Test
+	public  synchronized void changeProcessTest() {
+		String inputStr="{'minCode':'','devOnlyId':'','maxCode':'','jdata':[{'protectState':0,'devOnlyId':'','isOpened':0,'mac':'00-01-02-03-04-05','ip':'192.168.120.124'}]}";
+		final InputBean input = JsonUtils.jsonToBean(inputStr, InputBean.class, DeviceBean.class);
+		List<DeviceBean> beans=input.getJdata();
+		Set<DeviceBean> blockDeviceBeans = new HashSet<DeviceBean>();// 要进行查询阻断主机的设备
+		for (DeviceBean bean : beans) {
+		if (bean.getProtectState().equals("1")) {// 受保护状态:0不受保护,1受保护
+				// 判断 是否阻断 ， 受保护 和注册 的则不阻断
+				log.info(bean.getIp()+"受保护");
+				if (DBUtil.deviceBlockContais(bean)) {// 如果原先为阻断则取消阻断
+					bean.setBlockState("0");// 0取消阻断			
+					blockDeviceBeans.add(bean);
+				}
+			} else {// 阻断
+				if (true/*!SystemConstants.isBlock.equals("0")*/) {
+					log.info(bean.getIp()+"不受保护");
+					bean.setBlockState("1");//1去阻断		
+					//添加阻断到任务队列
+					blockDeviceBeans.add(bean);
+				}
+			}
+		}
+
+		try {
+			// 获取 阻断源 并生成任务队列
+			InputBean inputBean = new InputBean();
+			inputBean.setBlockHostNum("2");
+			for (DeviceBean bean : blockDeviceBeans) {
+				List<DeviceBean> deviceBeans = new ArrayList<DeviceBean>();				
+				DeviceBean deviceBean = new DeviceBean();
+				deviceBean.setIp(bean.getIp());
+				deviceBean.setMac(bean.getMac());
+				deviceBeans.add(deviceBean);
+				inputBean.setJdata(deviceBeans);
+				String outStr = JsonUtils.getNoNullJsonStr(inputBean);
+				log.info("请求在线服务获取阻断主机所发数据：" + outStr);
+				byte[] outData = outStr.getBytes();
+				// 配置服务接口暂未提供ip和端口号自己先定一个
+				IOnlineService client = ServiceFactory
+						.getService(IOnlineService.class);
+				ByteBuffer onlineOutData = null;
+				try {
+					onlineOutData = client.getDataTS(
+							IOnlineService.SERVICE_CODE,
+							IOnlineService.REGISTERED_DEVICE,
+							CRCUtils.getCRC32StringValue(outData), false,
+							ByteBuffer.wrap(outData), false, "", 0);
+					
+				} catch (TException e) {
+					e.printStackTrace();
+				}
+				if (onlineOutData != null) {
+					List<AttackDeviceInfoBean> attckDevList=new ArrayList<AttackDeviceInfoBean>();
+					String rStr = CommonUtil.byteBufferToString(onlineOutData);
+					log.info("攻击源返回" + rStr);
+					OutBean onlineOutBean = JsonUtils.jsonToBean(rStr,
+							OutBean.class, AttackDeviceInfoBean.class);
+					if(!onlineOutBean.getResult().equals(SystemConstants.SUCCESS))
+					{
+						log.info("获取阻断主机失败");
+					}else{
+					attckDevList=onlineOutBean.getJdata();
+					if(attckDevList!=null&&attckDevList.size()>0){
+					for(AttackDeviceInfoBean attackBean:attckDevList)
+					{	
+						JSONObject jsonObject = JSONObject.fromObject(attackBean);			
+						AttackDeviceInfoBean desBean=JsonUtils.jsonToBlockBean(jsonObject.toString(),
+								AttackDeviceInfoBean.class, DeviceBean.class);
+						BlockTaskBean taskBean = new BlockTaskBean();	
+						DeviceBean target=new DeviceBean();
+						target.setIp(bean.getIp());
+						target.setMac(bean.getMac());
+						taskBean.setBlockTargetDevice(bean);
+						taskBean.setBlockSrcDevices(desBean.getBlockHost());
+						TaskQueue.addTask(taskBean);
+					}
+					}
+					}
+
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		//SendUDPBlock.send("00010400","1");
+	}
+}

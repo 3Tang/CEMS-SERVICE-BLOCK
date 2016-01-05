@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ehcache>
+	<diskStore path="C:/VRV/CEMS-SERVICE-BLOCK/ehcache" />
+	<cache 
+		name="blockService"
+		maxElementsInMemory="5000" 
+		eternal="false"
+		timeToLiveSeconds="3600"
+		overflowToDisk="true"
+		diskPersistent="true"
+		maxElementsOnDisk="0" 
+		 />
+
+	<defaultCache maxElementsInMemory="10000" eternal="false"
+		timeToIdleSeconds="120" timeToLiveSeconds="120" overflowToDisk="true"
+		maxElementsOnDisk="10000000" diskPersistent="false"
+		diskExpiryThreadIntervalSeconds="120" memoryStoreEvictionPolicy="LRU" />
+</ehcache>

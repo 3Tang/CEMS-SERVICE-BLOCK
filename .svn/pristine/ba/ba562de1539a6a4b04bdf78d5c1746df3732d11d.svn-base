@@ -1,0 +1,124 @@
+/**   
+* @Title: AgencyScanProcess.java 
+* @Package com.vrv.cems.service.block.business 
+* @Description: TODO(用一句话描述该文件做什么) 
+* @author tangtieqiao
+		   tangtieqiao@vrvmail.com.cn
+* @date 2015年12月3日 下午3:39:01 
+* @version V1.0   
+*/
+package com.vrv.cems.service.block.business;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
+
+import org.apache.log4j.Logger;
+
+import com.sys.common.util.StringUtils;
+import com.vrv.cems.service.base.interfaces.IBlockService;
+import com.vrv.cems.service.block.CommomThreadPool;
+import com.vrv.cems.service.block.SystemCommonReturn;
+import com.vrv.cems.service.block.bean.ProtectedDevice;
+import com.vrv.cems.service.block.bean.ScanProcessBean;
+import com.vrv.cems.service.block.bean.ServiceParamBean.ParamBean;
+import com.vrv.cems.service.block.impl.EhCacheServ;
+import com.vrv.cems.service.block.utils.CommonUtil;
+import com.vrv.cems.service.block.utils.DBUtil;
+import com.vrv.cems.service.block.utils.EhCacheUtil;
+import com.vrv.cems.service.block.utils.SystemConstants;
+import com.vrv.cems.service.configure.utils.ReadConfigPropertiesUtils;
+
+/** 
+ * @ClassName: AgencyScanProcess 
+ * @Description: TODO(这里用一句话描述这个类的作用) 
+ * @author tangtieqiao
+			tangtieqiao@vrvmail.com.cn
+ * @date 2015年12月3日 下午3:39:01 
+ *  
+ */
+public class AgencyScanProcess extends BusinessProcess {
+	private static final Logger log = Logger.getLogger(AgencyScanProcess.class);
+	/*
+	* Title: process
+	*Description: 
+	* @param maxCode
+	* @param minCode
+	* @param checkCode
+	* @param isZip
+	* @param data
+	* @return 
+	* @see com.vrv.cems.service.block.business.BusinessProcess#process(java.lang.String, java.lang.String, java.lang.String, boolean, java.lang.String) 
+	*/
+	@Override
+	public ByteBuffer process(String maxCode, final String minCode, String checkCode,
+			boolean isZip, String data) {
+		String isBlock = "";
+		List<ParamBean> params = CommonUtil.getPolicyPrarams();
+		for (ParamBean param : params) {
+			if ("isBlock".equalsIgnoreCase(param.getKey())) {
+				isBlock = param.getValue();
+				log.info("是否阻断的参数isBlock为" + isBlock + ":0为不阻断,1为阻断");
+			}
+		}
+		// 初始化 服务的AreaId
+		String localServerAreaId = ReadConfigPropertiesUtils.getValue(
+				SystemConstants.PATH_CONFIG_PROPERTIES, "service.serverAreaId");
+
+		if (isBlock.equals("0")) {// 不阻断不进行任何处理直接返回
+			return SystemCommonReturn.commonReturn(maxCode, minCode,
+					SystemConstants.REQUEST_SUCCESS, "接受数据成功,不执行阻断!",
+					new ArrayList());
+		}
+		JSONObject dataJson=JSONObject.fromObject(data);
+		final List<ProtectedDevice> protectedDevs = new ArrayList<ProtectedDevice>();
+		Map<String, ScanProcessBean> spbMap = new HashMap<String, ScanProcessBean>();
+			JSONArray jdatas = dataJson.getJSONArray("jdata");
+			Collection<ScanProcessBean> scanProList = (List<ScanProcessBean>) JSONArray
+					.toCollection(jdatas, ScanProcessBean.class);
+			for (ScanProcessBean scanBean : scanProList) {
+				// 不论漫游与否,都要存在ScanResult里面,不对mac做强制验证
+				if (StringUtils.isNotBlank(scanBean.getIp())&&scanBean.getIsOpened().equals("1")) {
+					//DeviceBean deviceBean = new DeviceBean();
+					ProtectedDevice protectedDev=new ProtectedDevice();
+					String innerKey = scanBean.getIp() + ":" + scanBean.getMac();
+					spbMap.put(innerKey, scanBean);
+					// 若devOnlyId不空,则走漫游处理逻辑,为空,则走阻断处理逻辑
+					if (StringUtils.isNotBlank(scanBean.getDevOnlyId())) {
+						if (DBUtil.isRoam(scanBean.getDevOnlyId())) {
+							//漫游设备先不处理
+						}
+					} else {
+						protectedDev = DBUtil.getProtectState(scanBean);
+					}
+					protectedDevs.add(protectedDev);
+				}
+			}
+			// 存储scanResult
+		EhCacheServ.getInstance().storeScanResult(spbMap);
+		
+		
+		//EhCacheUtil.closeSingletonManager();
+		if (protectedDevs != null && protectedDevs.size() > 0) {
+			CommomThreadPool.joinThreadPool(new Runnable() {
+				public void run() {
+					// 生成阻断任务
+					DeviceStateChangeProcess.changeProcess(protectedDevs);
+					// 发送阻断
+				}
+			});
+
+		}// 请求在线服务失败的处理(根据失败类型进行不同处理)
+
+		return SystemCommonReturn.commonReturn(maxCode, minCode,
+				SystemConstants.REQUEST_SUCCESS, "成功", new ArrayList());
+		
+	}
+
+}

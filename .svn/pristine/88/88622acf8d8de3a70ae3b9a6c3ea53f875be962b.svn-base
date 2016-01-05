@@ -1,0 +1,154 @@
+package com.vrv.cems.service.block.business; 
+
+import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+
+import org.apache.log4j.Logger;
+
+import com.sys.common.util.UUIDUtils;
+import com.sys.common.util.security.CRCUtils;
+import com.vrv.cems.service.base.interfaces.IBlockService;
+import com.vrv.cems.service.block.ServiceMain;
+import com.vrv.cems.service.block.bean.BlockBean;
+import com.vrv.cems.service.block.bean.DeviceBean;
+import com.vrv.cems.service.block.bean.InputBean;
+import com.vrv.cems.service.block.bean.OutBean;
+import com.vrv.cems.service.block.bean.ReciveBlockBean;
+import com.vrv.cems.service.block.bean.SendBlockBean;
+import com.vrv.cems.service.block.bean.ServiceParamBean;
+import com.vrv.cems.service.block.bean.UDPHead;
+import com.vrv.cems.service.block.bean.ServiceParamBean.ParamBean;
+import com.vrv.cems.service.block.cache.BlockBeanCache;
+import com.vrv.cems.service.block.client.UDPClientCall;
+import com.vrv.cems.service.block.utils.JsonUtils;
+import com.vrv.cems.service.block.utils.SystemConstants;
+
+/** 
+ *   <B>说       明</B>: 阻断服务接收客户端阻断结果TCP通讯
+ *
+ * @author  作  者  名：daiyijun<br/>
+ *		    E-mail ：daiyijun@vrvmail.com.cn
+ 
+ * @version 版   本  号：V1.0.<br/>
+ *          创建时间：2015年3月18日 上午11:34:13 
+ */
+public class ReciveTCPBlockProcess extends BusinessProcess {
+	private static Logger log=Logger.getLogger(ReciveTCPBlockProcess.class);
+	
+	
+	@Override
+	public ByteBuffer process(String maxCode, String minCode, String checkCode,
+			boolean isZip, String data) {
+		String s = data;
+		log.info("客户端推来的数据："+s);
+		//	{"desc":"",
+		//	"jdata":[{
+		//				"blockCount":"0",
+		//				"blockIp":"192.168.32.137:1C-6F-65-ED-A4-0A;192.168.0.195:1C-6F-25-ED-A3-07;",
+		//				"deviceOnylId":"deviceOnylId","taskId":"0"
+		//			}],
+		//	"maxCode":"00010400",
+		//	"minCode":"4",
+		//	"result":"0"}
+		String blockRuleType="";
+		String blockNumber="";
+		String blockIntervalTime="";
+		if(ServiceParamBean.StaticParams!=null){
+			ServiceParamBean.StaticParams=ServiceMain.serviceParamBean.getParams();
+		}
+		List<ParamBean> params=ServiceParamBean.StaticParams;
+		for(ParamBean param:params)
+		{
+			if("blockRuleType".equalsIgnoreCase(param.getKey()))
+			{
+				blockRuleType=param.getValue();
+			}
+			if("blockNumber".equalsIgnoreCase(param.getKey()))
+			{
+				blockNumber=param.getValue();
+			}
+			if("blockIntervalTime".equalsIgnoreCase(param.getKey()))
+			{
+				blockIntervalTime=param.getValue();
+			}
+		}
+		InputBean inputBean = JsonUtils.jsonToBean(s, InputBean.class, ReciveBlockBean.class);
+		@SuppressWarnings("unchecked")
+		List<ReciveBlockBean> reciveBlockBeans = inputBean.getJdata();
+		Iterator<ReciveBlockBean> reciveTcpIterator = reciveBlockBeans.iterator();
+		while( reciveTcpIterator.hasNext() ){
+			ReciveBlockBean reciveBlockBean = reciveTcpIterator.next();
+			SendBlockBean sendBlockBean = BlockBeanCache.get( reciveBlockBean.getTaskId() );
+			List<String> successIPs = Arrays.asList( reciveBlockBean.getBlockIP().split(";") );
+			List<String> allIps = Arrays.asList( sendBlockBean.getBlockBean().getBlockIp().split(";") );
+			StringBuilder failIpBuilder = new StringBuilder();
+			for (int i = 0; i < allIps.size() ; i++) {
+				if( !successIPs.contains( allIps.get( i ) )){
+					failIpBuilder.append( allIps.get( i )+";" );
+				}
+			} 
+			BlockBean blockBean = new BlockBean();
+			blockBean.setTaskId( UUIDUtils.get32UUID() );
+			blockBean.setBlockIp(failIpBuilder.substring( 0 , failIpBuilder.length() - 1 ) );
+			blockBean.setBlockState(sendBlockBean.getBlockBean().getBlockState());
+			blockBean.setBlockRuleType(blockRuleType);
+			blockBean.setBlockNumber(blockNumber );
+			blockBean.setBlockIntervalTime(blockIntervalTime );
+			//设置  data 参数
+			InputBean dataInputBean = new InputBean();
+			dataInputBean.setMaxCode(SystemConstants.BLOCK_SERVICE_MAXCODE);
+			dataInputBean.setMinCode(SystemConstants.CLIENT_UDP_MINCODE);
+			List<BlockBean> blockBeans = new ArrayList<BlockBean>();
+			blockBeans.add(blockBean); 
+			dataInputBean.setJdata(blockBeans);
+			byte[] blockData = null ;
+			try {
+				blockData = JsonUtils.getJsonStr(dataInputBean).getBytes("UTF-8");
+			} catch (UnsupportedEncodingException e1) {
+				log.error("Exception",e1);
+				throw new RuntimeException( e1 ) ;
+			} 
+			
+			
+			UDPHead head = new UDPHead();
+			head.setDwFlag("");
+			head.setDwVersion(1);
+			head.setDwSize( blockData.length);
+			String crc=CRCUtils.getCRC32StringValue(blockData);
+			head.setDwCrc(crc);
+			String session=UUIDUtils.get32UUID();
+			head.setSzSessionId(session);
+			head.setDwMsgCode( 1 );
+			head.setDwMaxCode(IBlockService.SERVICE_CODE);
+			head.setDwMinCode(Integer.parseInt(minCode));
+			head.setwHeadSize((short)UDPHead.HEAD_SIZE);
+			head.setwType((short)1);
+			head.setwCount((short)1);
+			head.setwIndex((short)1);
+			
+			ByteBuffer message = ByteBuffer.allocate(UDPHead.HEAD_SIZE + blockData.length);
+			message.put(head.getCBuffer());
+			message.put( blockData ); 
+			
+			List<DeviceBean> deviceBeanList = sendBlockBean.getDeviceBeans();
+			for(DeviceBean deviceBean : deviceBeanList){
+				try {
+					//阻断服务与客户端UDP通讯 ，调用 客户端UDP服务
+					byte[] udpRs = UDPClientCall.sendUDPData( message.array() , deviceBean.getIp(), Integer.valueOf(deviceBean.getUdpPort()));
+					OutBean rsBean = JsonUtils.jsonToBean(new String(udpRs), OutBean.class, null); 
+				} catch (Exception e) {
+					log.error("Exception",e);
+					e.printStackTrace();
+				}
+			}
+			
+		}
+		return null;
+	}
+
+}
+ 

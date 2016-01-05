@@ -1,0 +1,55 @@
+package com.vrv.cems.service.block.business;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+
+import net.sf.json.JSONObject;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.log4j.Logger;
+
+import com.vrv.cems.service.block.CommomThreadPool;
+import com.vrv.cems.service.block.SystemCommonReturn;
+import com.vrv.cems.service.block.bean.DeviceBean;
+import com.vrv.cems.service.block.bean.InputBean;
+import com.vrv.cems.service.block.bean.ProtectedDevice;
+import com.vrv.cems.service.block.utils.JsonUtils;
+import com.vrv.cems.service.block.utils.SystemConstants;
+
+public class RegStateProcess extends BusinessProcess{
+	private static final Logger log = Logger.getLogger(RegStateProcess.class);
+	@SuppressWarnings("unchecked")
+	@Override
+	public ByteBuffer process(final String maxCode, final String minCode, String checkCode,
+			boolean isZip, String data) {
+		String s = data;
+		log.info("在线服务10号接口推来的数据为" + s);
+	/*	final InputBean inputBean = JsonUtils.jsonToBean(s, InputBean.class, DeviceBean.class);
+		List<DeviceBean> regDevBeans=(List<DeviceBean>)inputBean.getJdata();
+		final List<DeviceBean> noBlockBeans=new ArrayList<DeviceBean>();*/
+		
+		JSONObject jsonObj=JSONObject.fromObject(data);
+		String ip=jsonObj.getString("ip");
+		String mac=jsonObj.getString("mac");
+		
+		final List<ProtectedDevice> protectedDevs=new ArrayList<ProtectedDevice>();
+		if(StringUtils.isNotBlank(ip)){
+			ProtectedDevice noBlockBean =new ProtectedDevice();
+			noBlockBean.setIp(ip);
+			noBlockBean.setMac(mac);
+			noBlockBean.setProtectState("1");
+			protectedDevs.add(noBlockBean);
+		}
+		CommomThreadPool.joinThreadPool(new Runnable() {
+			public void run() {
+				//生成阻断任务
+				DeviceStateChangeProcess.changeProcess(protectedDevs);
+				SendUDPBlock.send(maxCode,minCode);
+			}
+		});
+		return SystemCommonReturn.commonReturn(maxCode, minCode, SystemConstants.REQUEST_SUCCESS, "成功", new ArrayList());
+	}
+
+
+}

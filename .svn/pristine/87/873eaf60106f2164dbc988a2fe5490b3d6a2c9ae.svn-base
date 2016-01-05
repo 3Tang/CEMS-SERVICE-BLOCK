@@ -1,0 +1,83 @@
+package com.vrv.cems.service.block.business; 
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+
+import net.sf.json.JSONObject;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.log4j.Logger;
+import org.dom4j.DocumentException;
+
+import com.vrv.cems.service.base.interfaces.IBlockService;
+import com.vrv.cems.service.base.util.ByteBufferUtils;
+import com.vrv.cems.service.block.bean.ServiceParamBean;
+import com.vrv.cems.service.block.utils.PolicyConfigService;
+import com.vrv.cems.service.block.utils.SystemConstants;
+
+/** 
+ *   <B>说       明</B>:修改配置文件，并更新内容
+ *
+ * @author  作  者  名：daiyijun<br/>
+ *		    E-mail ：daiyijun@vrvmail.com.cn
+ 
+ * @version 版   本  号：V1.0.<br/>
+ *          创建时间：2015年4月20日 下午2:18:27 
+ */
+public class UpdatePolicyProcess extends BusinessProcess{
+	private static Logger LOGGER=Logger.getLogger(UpdatePolicyProcess.class);
+	@Override
+	public ByteBuffer process(String maxCode, String minCode, String checkCode,
+			boolean isZip, String data) {
+		boolean isSuccess = true ;
+		try {
+			/*FileUtils.write(new File( PolicyXMLParse.getPolicyFilePath() ), data, "UTF-8", false );
+			PolicyXMLParse policyXMLParse = new PolicyXMLParse();
+			policyXMLParse.changeSystemConstantsByXML();	*/
+			//policyxml路径
+    	    String xmlPath=SystemConstants.PATH_POLICY_XML;
+			String policyXmlStr = null;
+			try {
+				//服务本地策略文件
+				policyXmlStr = PolicyConfigService.getInstance().policyXML2String(xmlPath);
+			} catch (IOException e1) {
+				// TODO 自动生成的 catch 块
+				e1.printStackTrace();
+			}
+			
+			if(StringUtils.isBlank(data))
+			{
+				throw new RuntimeException("网页平台传入参数为空！");
+			}
+			
+			if(StringUtils.isBlank(policyXmlStr))
+			{
+				throw new RuntimeException("本地策略文件为空！");
+			}
+			ServiceParamBean  servParamBean =new ServiceParamBean();
+    	    InputStream policyIn=new ByteArrayInputStream(data.getBytes());
+    	    
+    	    //对比修改参数属性并启动配置
+    	    servParamBean=PolicyConfigService.getInstance().modifyLocalPolicyParam(data, policyXmlStr);
+        	//回写文件
+    	    PolicyConfigService.getInstance().localServicePolicyFileWrite(servParamBean);
+		} catch (IOException e) { 
+			isSuccess= false ; 
+			LOGGER.error("写入数据有误",e);
+		} catch (DocumentException e) {
+			// TODO 自动生成的 catch 块
+			e.printStackTrace();
+		}
+		JSONObject jsonObject = new JSONObject();
+		jsonObject.accumulate("maxCode",IBlockService.SERVICE_CODE)
+				  .accumulate("minCode",SystemConstants.UPDATE_POLICY_SERVICE_CODE)
+				  .accumulate("result", isSuccess ? "0":"1" )
+				  .accumulate("desc", "" )
+				  .accumulate("jdata", "[{}]" );
+		return ByteBufferUtils.string2ByteBuffer( jsonObject.toString() );
+	}
+
+}
+ 

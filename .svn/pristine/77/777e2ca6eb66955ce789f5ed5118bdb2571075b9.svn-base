@@ -1,0 +1,53 @@
+package com.vrv.cems.service.block.factory;
+
+import com.vrv.cems.service.base.interfaces.IBlockService;
+import com.vrv.cems.service.block.business.AgencyScanProcess;
+import com.vrv.cems.service.block.business.BusinessProcess;
+import com.vrv.cems.service.block.business.OnlineProcess;
+import com.vrv.cems.service.block.business.ReciveTCPBlockProcess;
+import com.vrv.cems.service.block.business.RegStateProcess;
+import com.vrv.cems.service.block.business.ScanProcess;
+import com.vrv.cems.service.block.business.ServerAreaUpdateService;
+import com.vrv.cems.service.block.business.UpdatePolicyProcess;
+import com.vrv.cems.service.block.business.WebNoticeProcess;
+import com.vrv.cems.service.block.utils.SystemConstants;
+
+/** 
+ *   <B>说       明</B>:
+ *
+ * @author  作  者  名：dongyifei<br/>
+ *		    E-mail ：dongyifei@vrvmail.com.cn
+ 
+ * @version 版   本  号：V1.0.<br/>
+ *          创建时间：2014年8月15日 下午7:28:51 
+ */
+public class BusinessProcessFactory {
+	public static BusinessProcess create(String code){
+		BusinessProcess process = null;
+		if(code.equalsIgnoreCase(IBlockService.SCAN)){
+			//扫描服务
+			process = new ScanProcess();
+		}else if(code.equalsIgnoreCase(IBlockService.PROTECTSTATE)){
+			//未注册设备保护状态
+			process = new OnlineProcess();
+		}
+		else if(code.equalsIgnoreCase(IBlockService.REGSTATE)){
+			//未注册设备转为注册状态
+			process = new RegStateProcess();
+		}else if(code.equalsIgnoreCase(SystemConstants.WEB_SERVICE_CODE)){
+			//web平台
+			process = new WebNoticeProcess();
+		}else if( code.equalsIgnoreCase( SystemConstants.BLOCK_TCP_SERVICE_CODE)){
+			//阻断服务接收客户端阻断结果TCP通讯
+			process = new ReciveTCPBlockProcess();
+		}else if( code.equalsIgnoreCase( IBlockService.POLICY_XML )){
+			process = new UpdatePolicyProcess();
+		
+		}else if(code.equalsIgnoreCase(SystemConstants.CHANGE_SERVICE_AREA_CODE)){
+			process = new ServerAreaUpdateService();
+	}else if(code.equalsIgnoreCase(SystemConstants.AGENCY_SCAN)){
+		   process = new AgencyScanProcess();
+}
+		return process;
+	}
+}

@@ -1,0 +1,64 @@
+package com.vrv.cems.service.block.bean;
+
+/** 
+ *   <B>说       明</B>: 阻断服务与客户端UDP通讯  Jdata Bean
+ *
+ * @author  作  者  名：dongyifei<br/>
+ *		    E-mail ：dongyifei@vrvmail.com.cn
+ 
+ * @version 版   本  号：V1.0.<br/>
+ *          创建时间：2014年8月15日 下午7:28:51 
+ */
+public class BlockBean { 
+	/**任务ID 自动生成*/
+	private String taskId;
+	/**被阻断IP(多个IP以;分隔)*/
+	private String blockIp;
+	/**是否阻断(1为开始阻断,0为停止阻断。)*/
+	private String blockState;
+	/**1表示时长阻断，2表示阻断次数*/
+	private String blockRuleType;
+	/**阻断间隔时间*/
+	private String blockIntervalTime;
+	/**阻断次数*/
+	private String blockNumber ;
+	
+	
+	public String getBlockIp() {
+		return blockIp;
+	}
+	public void setBlockIp(String blockIp) {
+		this.blockIp = blockIp;
+	}
+	public String getBlockState() {
+		return blockState;
+	}
+	public void setBlockState(String blockState) {
+		this.blockState = blockState;
+	}
+	public String getBlockRuleType() {
+		return blockRuleType;
+	}
+	public void setBlockRuleType(String blockRuleType) {
+		this.blockRuleType = blockRuleType;
+	}
+	public String getTaskId() {
+		return taskId;
+	}
+	public void setTaskId(String taskId) {
+		this.taskId = taskId;
+	}
+	public String getBlockIntervalTime() {
+		return blockIntervalTime;
+	}
+	public void setBlockIntervalTime(String blockIntervalTime) {
+		this.blockIntervalTime = blockIntervalTime;
+	}
+	public String getBlockNumber() {
+		return blockNumber;
+	}
+	public void setBlockNumber(String blockNumber) {
+		this.blockNumber = blockNumber;
+	} 
+	
+}

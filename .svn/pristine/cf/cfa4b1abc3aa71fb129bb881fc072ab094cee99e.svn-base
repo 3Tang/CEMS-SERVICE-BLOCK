@@ -1,0 +1,225 @@
+package com.vrv.cems.service.block.business;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import net.sf.json.JSONObject;
+
+import org.apache.commons.dbutils.DbUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.log4j.Logger;
+import org.apache.thrift.TException;
+
+
+import com.sys.common.util.security.CRCUtils;
+import com.vrv.cems.service.base.interfaces.IOnlineService;
+import com.vrv.cems.service.block.ServiceMain;
+import com.vrv.cems.service.block.bean.AttackDeviceInfoBean;
+import com.vrv.cems.service.block.bean.BlockDevice;
+import com.vrv.cems.service.block.bean.BlockHostBean;
+import com.vrv.cems.service.block.bean.BlockTaskBean;
+import com.vrv.cems.service.block.bean.DeviceBean;
+import com.vrv.cems.service.block.bean.InputBean;
+import com.vrv.cems.service.block.bean.OnlineBlockInBean;
+import com.vrv.cems.service.block.bean.OutBean;
+import com.vrv.cems.service.block.bean.ProtectedDevice;
+import com.vrv.cems.service.block.bean.ServiceParamBean;
+import com.vrv.cems.service.block.bean.ServiceParamBean.ParamBean;
+import com.vrv.cems.service.block.cache.SendedBlockTaskCache;
+import com.vrv.cems.service.block.impl.EhCacheServ;
+import com.vrv.cems.service.block.task.TaskQueue;
+import com.vrv.cems.service.block.utils.CommonUtil;
+import com.vrv.cems.service.block.utils.DBUtil;
+import com.vrv.cems.service.block.utils.EhCacheUtil;
+import com.vrv.cems.service.block.utils.JsonUtils;
+import com.vrv.cems.service.block.utils.SystemConstants;
+import com.vrv.voa.client.ServiceFactory;
+
+/**
+ * <B>说 明</B>:DeviceStateChangeProcess 处理 在线 传过来的 保护状态 来组包 去 查询 阻断主机 信息
+ *
+ * @author 作 者 名 ：tangtieqiao<br/>
+ *         E-mail ：tangtieqiao@vrvmail.com.cn
+ * 
+ * @version 版 本 号：V1.0.<br/>
+ *          创建时间：2015年6月8日上午11:27:37
+ */
+public class DeviceStateChangeProcess {
+	private static Logger log = Logger
+			.getLogger(DeviceStateChangeProcess.class);
+
+	/**
+	 * @Title: changeProcess
+	 * @Description: TODO 组包发送在线查询阻断主机 主逻辑
+	 * @param @param beans 设定文件
+	 * @return void 返回类型
+	 * @throws
+	 */
+	@SuppressWarnings("unchecked")
+	public static synchronized void changeProcess(List<ProtectedDevice> protectedDevs) {
+		String isBlock = "";
+		String blockHostNum = "";
+		List<ParamBean> params = CommonUtil.getPolicyPrarams();
+		for (ParamBean param : params) {
+			if ("isBlock".equalsIgnoreCase(param.getKey())) {
+				isBlock = param.getValue();
+			}
+			if ("blockHostNum".equalsIgnoreCase(param.getKey())) {
+				blockHostNum = param.getValue();
+			}
+		}
+		
+
+		Set<DeviceBean> blockDeviceBeans = new HashSet<DeviceBean>();// 要进行查询阻断主机的设备
+		Map<String, ProtectedDevice> blocktargetMap = new HashMap<String, ProtectedDevice>();
+		if((Map<String, ProtectedDevice>) EhCacheUtil.get(SystemConstants.BLOCK_TARGET_LIST)!=null)
+		{
+			blocktargetMap=(Map<String, ProtectedDevice>) EhCacheUtil.get(SystemConstants.BLOCK_TARGET_LIST);
+		}
+		
+		if (protectedDevs != null && protectedDevs.size() > 0) {
+			for (ProtectedDevice bean : protectedDevs) {
+				if (StringUtils.isNotBlank(bean.getIp())) {
+					String innerKey = bean.getIp() + ":" + bean.getMac();
+					if (bean.getProtectState().equals("1")) {// 受保护状态:0不受保护,1受保护
+						// 去targetBlock里面的内容若无则不操作若有则
+						// 判断 是否阻断 ， 受保护 和注册 的则不阻断
+						log.info(bean.getIp() + "受保护");
+						if (blocktargetMap != null && blocktargetMap.size() > 0) {
+							if (blocktargetMap.containsKey(innerKey)) {
+								blocktargetMap.remove(innerKey);
+							}
+						}
+						// blocktargetContais(innerKey); // 若阻断源列表中存在该设备,则删除
+					} else if (bean.getProtectState().equals("0")) {// 阻断
+						if (isBlock.equals("1")) {
+							log.info(bean.getIp() + "不受保护");
+							if (blocktargetMap.size()>=0) {
+								blocktargetMap.put(innerKey, bean);
+							}
+						}
+					}
+				}
+			}
+			EhCacheServ.getInstance().storeBlockTarget(blocktargetMap);
+		}
+
+		//从在线服务7号接口获取阻断主机信息
+		ByteBuffer onlineOutData = getOnlineNo7IfData(blockHostNum);
+		if (onlineOutData!= null) {
+			List<AttackDeviceInfoBean> attckDevList = new ArrayList<AttackDeviceInfoBean>();
+			String rStr = CommonUtil.byteBufferToString(onlineOutData);
+			log.info("在线返回阻断主机信息为" + rStr);
+			OutBean onlineOutBean = JsonUtils.jsonToBean(rStr, OutBean.class,
+					AttackDeviceInfoBean.class);
+			attckDevList = onlineOutBean.getJdata();
+			Map<String,BlockDevice> blockDevMap=new HashMap<String,BlockDevice>();
+			//把在线返回的数据存入阻断主机列表
+			for (AttackDeviceInfoBean attackBean : attckDevList) {
+				JSONObject jsonObject = JSONObject.fromObject(attackBean);
+				AttackDeviceInfoBean desBean = JsonUtils.jsonToBlockBean(
+						jsonObject.toString(), AttackDeviceInfoBean.class,
+						BlockHostBean.class);
+				List<BlockHostBean> blockdeviceList=desBean.getBlockHost();
+				if(blockdeviceList!=null&&blockdeviceList.size()>0){
+				for(BlockHostBean blockhost:blockdeviceList)
+				{
+					if(StringUtils.isNotBlank(blockhost.getDevOnlyId())){
+						String innerKey=blockhost.getDevOnlyId();
+						if(StringUtils.isNotBlank(attackBean.getIp()))
+						{
+							BlockDevice blockDevice=new BlockDevice();
+							String blockIp=attackBean.getIp()+":"+attackBean.getMac();
+							blockDevice.setDevOnlyId(blockhost.getDevOnlyId());
+							blockDevice.setIp(blockhost.getIp());
+							blockDevice.setUdpPort(blockhost.getUdpPort());						
+							if(blockDevMap.containsKey(innerKey))
+							{
+								blockDevice.setBlockIp(blockDevMap.get(innerKey).getBlockIp()+";"+blockIp);
+							}else
+							{
+								blockDevice.setBlockIp(blockIp);
+							}
+							blockDevMap.put(innerKey, blockDevice);
+						}
+					}
+					
+				}
+			}
+			}
+			EhCacheServ.getInstance().storeBlockHost(blockDevMap);
+			//EhCacheUtil.closeSingletonManager();
+		}
+
+	}
+
+	/**
+	 * @Title: getOnlineNo7IfData
+	 * @Description: TODO(这里用一句话描述这个方法的作用)
+	 * @param @return 参数说明
+	 * @return ByteBuffer 返回类型
+	 * @throws
+	 */
+	private static ByteBuffer getOnlineNo7IfData(String blockHostNum) {
+		// 获取 阻断源 并生成任务队列
+		InputBean inputBean = new InputBean();
+		inputBean.setBlockHostNum(blockHostNum);
+		// 从ehcache取出阻断源列表
+		List<ProtectedDevice> blocktargetList = EhCacheServ.getInstance()
+				.getBlockTargetList();
+		List<DeviceBean> deviceBeans = new ArrayList<DeviceBean>();
+		for (ProtectedDevice bean : blocktargetList) {
+			DeviceBean deviceBean = new DeviceBean();
+			deviceBean.setIp(bean.getIp());
+			deviceBean.setMac(bean.getMac());
+			deviceBeans.add(deviceBean);
+		}
+		inputBean.setJdata(deviceBeans);
+		String outStr = JsonUtils.getNoNullJsonStr(inputBean);
+		log.info("请求在线服务获取阻断主机所发数据：" + outStr);
+		byte[] outData = outStr.getBytes();
+		// 配置服务接口暂未提供ip和端口号自己先定一个
+		IOnlineService client = ServiceFactory.getService(IOnlineService.class);
+		ByteBuffer onlineOutData = null;
+		try {
+			onlineOutData = client.getDataTS(IOnlineService.SERVICE_CODE,
+					IOnlineService.REGISTERED_DEVICE,
+					CRCUtils.getCRC32StringValue(outData), false,
+					ByteBuffer.wrap(outData), false, "", 0);
+		} catch (TException e) {
+			log.error("访问在线服务7号接口失败!"+e.getMessage());
+		}
+
+		return onlineOutData;
+	}
+
+	/**
+	 * @Title: blocktargetContais
+	 * @Description: TODO(这里用一句话描述这个方法的作用)
+	 * @param @param innerKey
+	 * @param @return 参数说明
+	 * @return boolean 返回类型
+	 * @throws
+	 */
+	private static void blocktargetContais(String innerKey) {
+
+		Map<String, ProtectedDevice> blocktargetMap = (Map<String, ProtectedDevice>) EhCacheUtil
+				.get(SystemConstants.BLOCK_TARGET_LIST);
+
+		if (blocktargetMap != null && blocktargetMap.size() > 0) {
+			if (blocktargetMap.containsKey(innerKey)) {
+				blocktargetMap.remove(innerKey);
+			}
+		}
+
+		EhCacheUtil.set(SystemConstants.BLOCK_TARGET_LIST, blocktargetMap);
+		
+	}
+
+	
+}

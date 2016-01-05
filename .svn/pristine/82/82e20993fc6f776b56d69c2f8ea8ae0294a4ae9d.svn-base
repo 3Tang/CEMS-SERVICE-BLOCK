@@ -1,0 +1,236 @@
+package com.vrv.cems.service.block.business;
+
+import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TimerTask;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.log4j.Logger;
+
+import com.sys.common.util.UUIDUtils;
+import com.sys.common.util.security.CRCUtils;
+import com.vrv.cems.service.base.interfaces.IBlockService;
+import com.vrv.cems.service.block.bean.BlockBean;
+import com.vrv.cems.service.block.bean.BlockDevice;
+import com.vrv.cems.service.block.bean.BlockFailBean;
+import com.vrv.cems.service.block.bean.BlockResult;
+import com.vrv.cems.service.block.bean.InputBean;
+import com.vrv.cems.service.block.bean.ServiceParamBean.ParamBean;
+import com.vrv.cems.service.block.bean.UDPHead;
+import com.vrv.cems.service.block.cache.SendedBlockTaskCache;
+import com.vrv.cems.service.block.client.UDPClientCall;
+import com.vrv.cems.service.block.impl.EhCacheServ;
+import com.vrv.cems.service.block.utils.CommonUtil;
+import com.vrv.cems.service.block.utils.DBUtil;
+import com.vrv.cems.service.block.utils.JsonUtils;
+import com.vrv.cems.service.block.utils.SystemConstants;
+
+/**
+ * <B>说 明</B>:
+ *
+ * @author 作 者 名：dongyifei<br/>
+ *         E-mail ：dongyifei@vrvmail.com.cn
+ * 
+ * @version 版 本 号：V1.0.<br/>
+ *          创建时间：2014年8月15日 下午7:28:51
+ */
+
+
+public class SendUDPBlockTask extends TimerTask {
+	private static Logger log = Logger.getLogger(SendUDPBlockTask.class);
+	static Map<String,BlockResult> blockResults=new HashMap<String,BlockResult>();
+	
+	public void run() {
+		String minCode=IBlockService.SCAN;
+		String blockRuleType = "";
+		String blockTime = "";
+		List<ParamBean> params = CommonUtil.getPolicyPrarams();
+		for (ParamBean param : params) {
+			if ("blockRuleType".equalsIgnoreCase(param.getKey())) {
+				blockRuleType = param.getValue();
+			}
+			if ("blockTime".equalsIgnoreCase(param.getKey())) {
+				blockTime = param.getValue();
+			}
+		}
+
+		List<BlockFailBean> bfbs = new ArrayList<BlockFailBean>();
+		List<BlockDevice> blockDevs = EhCacheServ.getInstance()
+				.getBlockHostList();
+		
+		if (blockDevs == null || blockDevs.size() < 1) {
+			log.error("BlockHostList为空!" + blockDevs.size());
+		} else {
+			for (BlockDevice blockDev : blockDevs) {
+				List<BlockBean> blockBeans=toBlockBeans(blockRuleType, blockTime, blockDev);
+				// 设置 data 参数
+				final ByteBuffer message = getUDPMsg(minCode, blockBeans);
+
+				// 存入缓存
+				// SendedBlockTaskCache.put(targetBlockDevice, deviceBeans);
+
+				boolean blockflag = false;
+				int repeatCount = 3;
+				while (repeatCount > 0) {
+					if (StringUtils.isNotBlank(blockDev.getIp())
+							& StringUtils.isNotBlank(blockDev.getUdpPort())) {
+						try {
+					
+							// 阻断服务与客户端UDP通讯 ，调用 客户端UDP服务
+							byte[] udpRs = UDPClientCall.sendUDPData(
+									message.array(), blockDev.getIp(),
+									Integer.valueOf(blockDev.getUdpPort()));
+							/*
+							 * OutBean rsBean = JsonUtils.jsonToBean(new
+							 * String(udpRs), OutBean.class, null);
+							 */
+							if (udpRs.length > 1) {
+								blockflag = true;
+								break;
+							} else {
+								repeatCount--;
+							}
+						} catch (Exception e) {
+							log.error("Exception", e);
+							repeatCount--;
+						}
+					}
+				}
+
+				
+				if (!blockflag) {
+					// 阻断成功,则存入队列
+					BlockResult blockResult=toBlockResult(blockRuleType, blockTime, blockDev);
+					
+					if(StringUtils.isNotBlank(blockDev.getDevOnlyId()))
+					{
+						String innerKey=blockDev.getDevOnlyId();
+						blockResults.put(innerKey, blockResult);
+					}
+				}
+				
+				if (blockflag) {
+					// 取消阻断成功,则从队列里删除
+					
+				}
+
+			
+			}
+		}
+		// 序列化阻断任务缓存到文件
+		/*
+		 * SerializableUtil.objectToFile(SendedBlockTaskCache.getMap(),
+		 * SystemConstants.SENDED_BLOCK_TASK_CACHE_FILE);
+		 */
+		DBUtil.saveDeviceBlock(SendedBlockTaskCache.getMap());
+		storeBlockResult();
+
+	}
+
+	public static synchronized void storeBlockResult()
+	{
+		if(blockResults!=null&&blockResults.size()>0){
+		     EhCacheServ.getInstance().storeBlockResult(blockResults);
+	      }
+		else
+		{
+			log.error("阻断失败列表为空!");;
+		}
+		
+	}
+	
+	/** 
+	* @Title: toBlockResult 
+	* @Description: TODO(这里用一句话描述这个方法的作用) 
+	* @param @param blockRuleType
+	* @param @param blockTime
+	* @param @param blockDev  参数说明 
+	* @return void    返回类型 
+	* @throws 
+	*/
+	public static BlockResult toBlockResult(String blockRuleType, String blockTime,
+			BlockDevice blockDev) {
+		BlockResult blockResult=new BlockResult();
+		blockResult.setBlockIp(blockDev.getBlockIp());
+		blockResult.setIp(blockDev.getIp());
+		blockResult.setBlockResult(SystemConstants.BLOCK_FAIL);
+		blockResult.setBlockRuleType(blockRuleType);
+		blockResult.setBlockState(SystemConstants.BLOCK_STATE);
+		blockResult.setBlockTime(blockTime);
+		return blockResult;
+	}
+
+	/** 
+	* @Title: toBlockBeans 
+	* @Description: TODO(这里用一句话描述这个方法的作用) 
+	* @param @param blockRuleType
+	* @param @param blockTime
+	* @param @param blockBeans
+	* @param @param blockDev  参数说明 
+	* @return void    返回类型 
+	* @throws 
+	*/
+	public static List<BlockBean> toBlockBeans(String blockRuleType, String blockTime,BlockDevice blockDev) {
+		List<BlockBean> blockBeans=new ArrayList<BlockBean>();
+		BlockBean blockBean = new BlockBean();
+		blockBean.setIp(blockDev.getIp());
+		blockBean.setBlockIp(blockDev.getBlockIp());
+		blockBean.setBlockState(SystemConstants.BLOCK_STATE);
+		blockBean.setBlockRuleType(blockRuleType);
+		blockBean.setBlockTime(blockTime);
+		blockBeans.add(blockBean);
+		return blockBeans;
+	}
+
+	/**
+	 * @Title: getUDPMsg
+	 * @Description: TODO(这里用一句话描述这个方法的作用)
+	 * @param @param minCode
+	 * @param @param blockBeans
+	 * @param @return 参数说明
+	 * @return ByteBuffer 返回类型
+	 * @throws
+	 */
+	public static ByteBuffer getUDPMsg(String minCode,
+			List<BlockBean> blockBeans) {
+		InputBean inputBean = new InputBean();
+		inputBean.setMaxCode(IBlockService.SERVICE_CODE);
+		inputBean.setMinCode(minCode);
+		inputBean.setJdata(blockBeans);
+		byte[] blockData = null;
+		try {
+			blockData = JsonUtils.getJsonStr(inputBean).getBytes("UTF-8");
+		} catch (UnsupportedEncodingException e1) {
+			log.error("Exception", e1);
+			throw new RuntimeException(e1);
+		}
+		UDPHead head = new UDPHead();
+		head.setDwFlag("pde_");
+		head.setDwVersion(0x01010101);
+		head.setDwSize(blockData.length);
+		String crc = CRCUtils.getCRC32StringValue(blockData);
+		head.setDwCrc(crc);
+		String session = UUIDUtils.get32UUID();
+		head.setSzSessionId(session);
+		head.setDwMsgCode(1);
+		head.setDwMaxCode("0x" + IBlockService.SERVICE_CODE);
+		head.setDwMinCode(Integer.parseInt(minCode));
+		head.setwHeadSize((short) UDPHead.HEAD_SIZE);
+		head.setwType((short) 1);
+		head.setwCount((short) 3);
+		head.setwIndex((short) 1);
+
+		final ByteBuffer message = ByteBuffer.allocate(UDPHead.HEAD_SIZE
+				+ blockData.length);
+		message.put(head.getCBuffer());
+		message.put(blockData);
+		return message;
+	}
+
+
+	
+}

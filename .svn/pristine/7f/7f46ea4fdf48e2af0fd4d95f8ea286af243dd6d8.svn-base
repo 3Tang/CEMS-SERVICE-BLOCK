@@ -1,0 +1,161 @@
+package com.vrv.cems.service.block.business;
+
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+
+import net.sf.json.JSONArray;
+import net.sf.json.JSONObject;
+import net.sf.json.JsonConfig;
+
+import org.apache.log4j.Logger;
+
+import com.sys.common.util.StringUtils;
+import com.vrv.cems.service.base.interfaces.IBlockService;
+import com.vrv.cems.service.block.CommomThreadPool;
+import com.vrv.cems.service.block.SystemCommonReturn;
+import com.vrv.cems.service.block.bean.DeviceBean;
+import com.vrv.cems.service.block.bean.InputBean;
+import com.vrv.cems.service.block.bean.ScanProcessBean;
+import com.vrv.cems.service.block.bean.ScanProcessJdata;
+import com.vrv.cems.service.block.utils.DBUtil;
+import com.vrv.cems.service.block.utils.JsonUtils;
+import com.vrv.cems.service.block.utils.SystemConstants;
+
+
+/** 
+ *   <B>说       明</B>:ScanProcess 阻断服务 接受扫描服务接口
+ *
+ * @author  作  者  名 ：tangtieqiao<br/>
+ *		    E-mail ：tangtieqiao@vrvmail.com.cn
+ 
+ * @version 版   本  号：V1.0.<br/>
+ *          创建时间：2015年6月8日上午11:11:17 
+ */
+public class ScanProcess extends BusinessProcess {
+	private static final Logger log = Logger.getLogger(ScanProcess.class);
+
+
+	
+	/* 扫描服务接口处理主逻辑
+	* <p>Title: process</p> 
+	* <p>Description: </p> 
+	* @param maxCode
+	* @param minCode
+	* @param checkCode
+	* @param isZip
+	* @param data
+	* @return ByteBuffer
+	* 
+	*/
+	@SuppressWarnings("deprecation")
+	@Override
+	public ByteBuffer process(final String maxCode, final String minCode, String checkCode,
+			boolean isZip, String data) {
+
+		if (SystemConstants.isBlock.equals("0")) {// 不阻断不进行任何处理直接返回
+			return SystemCommonReturn.commonReturn(maxCode, minCode,
+					SystemConstants.REQUEST_SUCCESS, "成功", new ArrayList());
+		}
+		String s = data;
+		log.info("扫描服务推来的数据：" + s);
+		/*
+		 * InputBean inputBean = JsonUtils.jsonToBean(s, InputBean.class,
+		 * DeviceBean.class); List<DeviceBean> scanInputBeans =
+		 * inputBean.getJdata();
+		 */
+		// 传入的参数变了
+
+		// 根据扫描服务推来的数据生成请求在线服务的数据
+		List<DeviceBean> deviceBeans = new ArrayList<DeviceBean>();
+		InputBean onlineInputBean = new InputBean();
+		JsonConfig jsonConfig=new JsonConfig();
+		JSONArray jsonarray = JSONArray.fromObject(s,jsonConfig);
+		
+		List<ScanProcessBean> scanProList = (List<ScanProcessBean>) JSONArray
+				.toList(jsonarray, ScanProcessBean.class);
+		for (ScanProcessBean scanBean : scanProList) {
+			if (scanBean.getIsOpened() != null
+					&& "1".equals(scanBean.getIsOpened())) {
+				if (StringUtils.isNotBlank(scanBean.getIp())
+						/*&& StringUtils.isNotBlank(scanBean.getMac())*/) {
+					DeviceBean deviceBean = new DeviceBean();
+					deviceBean.setIp(scanBean.getIp());
+					deviceBean.setMac(scanBean.getMac());
+					deviceBeans.add(deviceBean);
+				}
+			} else {
+				if(scanBean.getJdata()!=null){
+					JSONObject jsonObject = JSONObject.fromObject(scanBean);
+					ScanProcessBean scanTCBean=JsonUtils.jsonToBean(jsonObject.toString(),
+							ScanProcessBean.class, ScanProcessJdata.class);
+				List<ScanProcessJdata> jdatas = scanTCBean.getJdata();
+				for (ScanProcessJdata scanInputBean : jdatas) {
+					// 开机
+					DeviceBean deviceBean = new DeviceBean();
+					if (scanInputBean != null
+							&& scanInputBean.getIsOpened().equals("1")) {
+						if (StringUtils.isNotBlank(scanInputBean.getIp())
+								&& StringUtils.isNotBlank(scanInputBean
+										.getMac())) {
+							deviceBean.setIp(scanInputBean.getIp());
+							deviceBean.setMac(scanInputBean.getMac());
+							deviceBeans.add(deviceBean);
+						}
+					}
+				}
+			}
+			}
+		}
+		onlineInputBean.setJdata(deviceBeans);
+		/*// 向配置服务要在线服务的ip和端口号
+		// 配置服务接口暂未提供ip和端口号自己先定一个
+		IOnlineService client = ServiceFactory.getService(IOnlineService.class);
+		// 请求在线服务获取设备状态信息
+		String outStr = JsonUtils.getNoNullJsonStr(onlineInputBean);
+		log.info("请求在线服务获取设备状态信息所发数据：" + outStr);
+		byte[] outData = outStr.getBytes();
+
+		ByteBuffer onlineOutData = null;
+		try {
+			onlineOutData = client.getDataTS(IOnlineService.SERVICE_CODE,
+					IOnlineService.DEVICE_INFO,
+					CRCUtils.getCRC32StringValue(outData), false,
+					ByteBuffer.wrap(outData), false, "", 0);
+		} catch (TException e) {
+			e.printStackTrace();
+		}
+
+		// byte[] rs = buffer.array();
+		// ByteBuffer onlineOutData =
+		// ThriftServiceCall.synRequest(SystemConstants.ONLINE_SERVICE_MAXCODE,
+		// SystemConstants.ONLINE_SERVICE_DEVICE_STATUS_MINCODE,
+		// CRCUtils.getCRC32StringValue(outData), false,
+		// ByteBuffer.wrap(outData), address, port);
+		// 根据在线服务返回数据生成阻断设备
+		String reStr = CommonUtil.byteBufferToString(onlineOutData);
+		log.info("在线设备返回设备状态信息：" + reStr);
+
+		final OutBean onlineOutBean = JsonUtils.jsonToBean(reStr,
+				OutBean.class, DeviceBean.class);
+*/
+		//之前是向在线服务查询是否受保护,现在是直接查数据库,查未注册设备表
+		final List<DeviceBean> devProStates =DBUtil.getProtectState(onlineInputBean);
+		// 请求在线服务成功的处理
+		if (devProStates!=null&&devProStates.size()>0) {
+			CommomThreadPool.joinThreadPool(new Runnable() {
+				public void run() {
+					// 生成阻断任务
+					DeviceStateChangeProcess.changeProcess(devProStates);
+					// 发送阻断
+					SendUDPBlock.send(IBlockService.SERVICE_CODE,minCode);
+				}
+			});
+
+		}// 请求在线服务失败的处理(根据失败类型进行不同处理)
+
+		return SystemCommonReturn.commonReturn(maxCode, minCode,
+				SystemConstants.REQUEST_SUCCESS, "成功", new ArrayList());
+	}
+
+}

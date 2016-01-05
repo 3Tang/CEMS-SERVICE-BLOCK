@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root>
+	<thriftBean selectorThreads="4" workerThreads="200" />
+	<logBean logLevel="INFO" logPath="../logs/Sys.log" />
+	<params>
+		<paramBean key="blockHostNum" value="8" />
+		<paramBean key="isBlock" value="1" />
+		<paramBean key="timeoutUdp" value="3" />
+		<!-- <paramBean key="serverIntervalTime" value="3" /> -->
+		<paramBean key="blockRuleType" value="1" /><!-- 写死 -->
+		<paramBean key="blockTime" value="5" />
+		<paramBean key="blockNumber" value="0" /><!-- 写死 -->		
+	</params>
+	<timers>
+		<timerBean>
+			<name>PolicyXmlJob</name>
+			<group>PolicyXmlGroup</group>
+			<trigger>PolicyXmlTrigger</trigger>
+			<cycle>0 0/3 * * * ?</cycle>
+		</timerBean>
+	<!-- 	<timerBean>
+			<name>ScanBlockMemoryJob</name>
+			<group>ScanBlockMemoryGroup</group>
+			<trigger>ScanBlockMemoryTrigger</trigger>
+			<cycle>0 0/2 * * * ?</cycle>
+		</timerBean> -->
+	</timers>
+</root>
